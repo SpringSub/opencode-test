@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "wordapp-76053"
+  },
+  "targets": {
+    "wordapp-76053": {
+      "hosting": {
+        "vocab": [
+          "vocab-y2"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

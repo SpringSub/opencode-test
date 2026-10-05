@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#4f46e5">
+<title>vocaby — 英単語アプリ</title>
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+</head>
+<body>
+<header class="app-header">
+  <h1>vocaby</h1>
+  <p class="subtitle">英単語学習</p>
+</header>
+
+<main id="main">
+  <!-- ホーム -->
+  <section id="view-home" class="view active">
+    <div class="card">
+      <h2>単語帳を選ぶ</h2>
+      <p class="muted">アイコンをタップするとチャプター一覧が開きます。</p>
+      <div id="home-book-grid" class="book-grid"></div>
+    </div>
+  </section>
+
+  <!-- 単語帳一覧 -->
+  <section id="view-books" class="view">
+    <h2>単語帳</h2>
+
+    <div id="books-empty" class="card hidden">
+      <p class="muted">ホームから単語帳を選んでください。</p>
+      <button id="books-to-home-btn" class="primary big">ホームで選ぶ</button>
+    </div>
+
+    <div id="book-editor" class="card hidden">
+      <h3 id="book-editor-title">新規単語帳</h3>
+      <label>タイトル<input id="book-title-input" placeholder="例: TOEIC 頻出100" maxlength="50"></label>
+      <label>説明<input id="book-desc-input" placeholder="例: 通勤中に覚える" maxlength="100"></label>
+      <label>アイコン画像
+        <input type="file" id="book-icon-input" accept="image/*">
+      </label>
+      <div class="row">
+        <img id="book-icon-preview" class="icon-preview hidden" alt="アイコンプレビュー">
+        <button id="book-icon-clear-btn" class="hidden">画像を消す</button>
+      </div>
+      <div class="row">
+        <button id="book-save-btn" class="primary">保存</button>
+        <button id="book-cancel-btn">キャンセル</button>
+      </div>
+    </div>
+
+    <div id="word-detail" class="card hidden">
+      <div id="word-detail-banner" class="book-banner hidden">
+        <img id="word-detail-banner-img" alt="">
+        <div class="book-banner-fade"></div>
+      </div>
+      <div class="row-between">
+        <h3 id="word-detail-title"></h3>
+        <button id="word-detail-close">閉じる</button>
+      </div>
+      <p id="word-detail-desc" class="muted"></p>
+      <div class="row">
+        <button id="word-add-btn" class="primary">＋ 単語追加</button>
+        <button id="word-bulk-btn">⧉ 一括追加</button>
+        <button id="word-quiz-btn">帳全体でクイズ</button>
+        <button id="book-export-btn">共有する</button>
+        <button id="book-edit-btn">帳を編集</button>
+        <button id="book-delete-btn" class="danger">帳を削除</button>
+      </div>
+      <h4>チャプター</h4>
+      <div id="chapter-list" class="list"></div>
+      <div class="row">
+        <button id="chapter-add-btn">＋ チャプター追加</button>
+      </div>
+      <div id="chapter-editor" class="inline-editor hidden">
+        <input id="chapter-title-input" placeholder="チャプター名 (例: 第1章 動詞)" maxlength="50">
+        <div class="row">
+          <button id="chapter-save-btn" class="primary">保存</button>
+          <button id="chapter-cancel-btn">キャンセル</button>
+        </div>
+      </div>
+      <div id="bulk-editor" class="inline-editor hidden">
+        <h4>コピペで一括追加（数千語OK）</h4>
+        <p class="muted">1行1語。区切りは自動判定: タブ / カンマ / <code>:</code> / <code>=</code> / スペース。例:<br>
+        <code>apple[TAB]りんご</code><br><code>book,本</code><br><code>challenge:挑戦</code></p>
+        <textarea id="bulk-textarea" rows="8" placeholder="apple	りんご&#10;book	本&#10;challenge	挑戦"></textarea>
+        <label>追加先チャプター<select id="bulk-chapter-select"></select></label>
+        <div id="bulk-preview" class="muted"></div>
+        <div class="row">
+          <button id="bulk-add-btn" class="primary">追加する</button>
+          <button id="bulk-cancel-btn">閉じる</button>
+        </div>
+      </div>
+      <div id="word-editor" class="inline-editor hidden">
+        <input id="word-en-input" placeholder="英語 (例: apple)" maxlength="100">
+        <input id="word-ja-input" placeholder="日本語 (例: りんご)" maxlength="100">
+        <label>チャプター<select id="word-chapter-select"></select></label>
+        <div class="row">
+          <button id="word-save-btn" class="primary">保存</button>
+          <button id="word-cancel-btn">キャンセル</button>
+        </div>
+      </div>
+      <div id="word-list" class="list"></div>
+    </div>
+  </section>
+
+  <!-- クイズ -->
+  <section id="view-quiz" class="view">
+    <div id="quiz-setup" class="card">
+      <h2>クイズ設定</h2>
+      <p class="muted">ホームで単語帳を選んで開始できます。</p>
+      <button id="quiz-setup-start" class="primary big">ホームへ戻る</button>
+    </div>
+
+    <div id="quiz-play" class="card hidden">
+      <div class="quiz-progress">
+        <span id="quiz-progress-text">1 / 10</span>
+        <div class="bar"><div id="quiz-progress-bar"></div></div>
+      </div>
+      <p id="quiz-book-name" class="muted"></p>
+      <h2 id="quiz-question" class="quiz-q"></h2>
+      <p id="quiz-hint" class="muted"></p>
+      <div id="quiz-input-area">
+        <input id="quiz-answer-input" placeholder="答えを入力" autocomplete="off" enterkeyhint="go">
+        <div class="row">
+          <button id="quiz-answer-btn" class="primary big">回答する</button>
+          <button id="quiz-giveup-btn">答えを見る</button>
+        </div>
+      </div>
+      <div id="quiz-choice-area" class="choice-grid hidden"></div>
+      <div id="quiz-feedback" class="feedback hidden"></div>
+      <button id="quiz-next-btn" class="primary big hidden">次の問題へ</button>
+      <button id="quiz-quit-btn" class="danger-text">中断する</button>
+    </div>
+
+    <div id="quiz-result" class="card hidden">
+      <h2>結果</h2>
+      <div id="quiz-result-summary" class="stats-row"></div>
+      <div id="quiz-result-list" class="list"></div>
+      <div class="row">
+        <button id="quiz-retry-btn" class="primary">もう一度</button>
+        <button id="quiz-to-home-btn">ホームへ</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 記録 -->
+  <section id="view-records" class="view">
+    <div class="row-between">
+      <h2>学習記録</h2>
+      <button id="records-clear-btn" class="danger">全削除</button>
+    </div>
+    <div class="card highlight">
+      <h2>今日の学習</h2>
+      <div id="home-today" class="stats-row"></div>
+    </div>
+    <div class="card">
+      <h2>累計</h2>
+      <div id="home-total" class="stats-row"></div>
+    </div>
+    <div class="card">
+      <h2>過去1週間（勉強量: 問題数）</h2>
+      <div class="chart-wrap"><canvas id="week-chart" height="200"></canvas></div>
+      <p id="week-chart-note" class="muted"></p>
+    </div>
+    <div id="records-summary" class="card"></div>
+    <div id="records-list" class="list"></div>
+  </section>
+</main>
+
+<nav class="bottom-nav">
+  <button data-view="view-home" class="active">🏠<span>ホーム</span></button>
+  <button data-view="view-books">📚<span>単語帳</span></button>
+  <button data-view="view-records">📊<span>記録</span></button>
+</nav>
+
+<!-- 出題設定モーダル（チャプター選択後に中央に表示） -->
+<div id="quiz-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <h3 id="quiz-modal-title"></h3>
+    <p id="quiz-modal-sub" class="muted"></p>
+    <label>出題方向
+      <select id="qs-mode-select">
+        <option value="en-ja">英語 → 日本語</option>
+        <option value="ja-en">日本語 → 英語</option>
+        <option value="random">ランダム</option>
+      </select>
+    </label>
+    <label>出題形式
+      <select id="qs-format-select">
+        <option value="input">一問一答（入力）</option>
+        <option value="choice">4択</option>
+      </select>
+    </label>
+    <label>問題数
+      <select id="qs-count-select">
+        <option value="5">5問</option>
+        <option value="10" selected>10問</option>
+        <option value="20">20問</option>
+        <option value="0">全問</option>
+      </select>
+    </label>
+    <label class="check"><input type="checkbox" id="qs-shuffle-check" checked> 出題順をシャッフル</label>
+    <div class="row">
+      <button id="qs-start-btn" class="primary">開始</button>
+      <button id="qs-cancel-btn">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<!-- 新規追加の選択（自作 / インポート） -->
+<div id="newbook-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <h3>単語帳を追加</h3>
+    <p class="muted">作り方を選んでください。</p>
+    <div class="row">
+      <button id="newbook-create-btn" class="primary">自分で作る</button>
+      <button id="newbook-import-btn">インポート</button>
+    </div>
+    <button id="newbook-cancel-btn" class="danger-text">キャンセル</button>
+    <input type="file" id="import-file-input" accept="application/json,.json" class="hidden">
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
