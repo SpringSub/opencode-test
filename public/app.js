@@ -22,6 +22,8 @@ migrateKey(LS_BOOKS, 'tango_app_wordbooks_v1');
 migrateKey(LS_RECORDS, 'tango_app_records_v1');
 
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+// 「未分類」は実体のない仮想チャプターとして扱う（chapterId=null の単語群）
+const UNCAT = '__uncategorized__';
 
 const Store = {
   loadBooks() {
@@ -81,8 +83,8 @@ books.forEach(ensureBookShape);
 
 let editingBookId = null;
 let detailBookId = null;
-let editingWordId = null;
-let editingChapterId = null;
+let editingWordId = null; // 編集モーダルで編集中の単語ID（null=新規追加）
+let editChapterId = null; // 編集モーダルで選択中のチャプターID
 let pendingIconData = null; // book-editorで選択中のアイコン画像(dataURL or null)
 
 function bookIconHtml(b, cls) {
@@ -157,7 +159,7 @@ document.getElementById('quiz-setup-start').addEventListener('click', () => {
 
 // ---------- 単語帳（選択はホームからのみ。一覧は表示しない） ----------
 function hideEditors() {
-  ['book-editor', 'chapter-editor', 'word-editor', 'bulk-editor'].forEach(id =>
+  ['book-editor'].forEach(id =>
     document.getElementById(id)?.classList.add('hidden'));
 }
 function renderBooks() {
@@ -262,7 +264,7 @@ function buildImportedBook(data) {
     updatedAt: now,
   };
 }
-document.getElementById('book-export-btn').addEventListener('click', () => {
+document.getElementById('book-share-btn').addEventListener('click', () => {
   const b = books.find(x => x.id === detailBookId);
   if (!b) return;
   const payload = {
@@ -300,6 +302,25 @@ document.getElementById('book-save-btn').addEventListener('click', () => {
 
 // ---------- 単語帳アイコン（画像アップロード） ----------
 // 画像は長辺1024pxに縮小してdataURL保存（バナー表示でも荒くならない解像度を確保）
+function readDownscaledImage(file, cb) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 1024;
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      cb(c.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => alert('画像を読み込めませんでした');
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
 function setIconPreview(dataUrl) {
   pendingIconData = dataUrl || null;
   const img = document.getElementById('book-icon-preview');
@@ -320,23 +341,7 @@ document.getElementById('book-icon-input').addEventListener('change', e => {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
   if (!file.type.startsWith('image/')) { alert('画像ファイルを選んでください'); return; }
-  const reader = new FileReader();
-  reader.onload = () => {
-    const img = new Image();
-    img.onload = () => {
-      const MAX = 1024;
-      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
-      const w = Math.max(1, Math.round(img.width * scale));
-      const h = Math.max(1, Math.round(img.height * scale));
-      const c = document.createElement('canvas');
-      c.width = w; c.height = h;
-      c.getContext('2d').drawImage(img, 0, 0, w, h);
-      setIconPreview(c.toDataURL('image/jpeg', 0.85));
-    };
-    img.onerror = () => alert('画像を読み込めませんでした');
-    img.src = reader.result;
-  };
-  reader.readAsDataURL(file);
+  readDownscaledImage(file, setIconPreview);
 });
 document.getElementById('book-icon-clear-btn').addEventListener('click', () => setIconPreview(null));
 
@@ -353,95 +358,57 @@ function chapterOf(b, id) {
 }
 function chapterWords(b, chapterId) {
   if (!chapterId) return [...b.words];
+  if (chapterId === UNCAT) return b.words.filter(w => !w.chapterId || !chapterOf(b, w.chapterId));
   return b.words.filter(w => w.chapterId === chapterId);
 }
-// チャプター選択肢（単語追加・一括追加用）。既存があれば先頭を初期選択
-function fillChapterSelect(sel, selectedId) {
-  const b = books.find(x => x.id === detailBookId);
-  if (!b) return;
-  const def = selectedId !== undefined ? selectedId : ((b.chapters || [])[0]?.id || '');
-  sel.innerHTML = `<option value="">未分類</option>` +
-    (b.chapters || []).map(c => `<option value="${c.id}">${escapeHtml(c.title)}</option>`).join('');
-  sel.value = def;
+function uncatWords(b) {
+  return chapterWords(b, UNCAT);
 }
-
 function renderChapters() {
   const b = books.find(x => x.id === detailBookId);
   if (!b) return;
   const el = document.getElementById('chapter-list');
-  const rows = [`
-    <div class="list-item word-row chapter-row" data-chquiz="">
-      <div class="w">
-        <div class="title">📖 すべて</div>
-        <div><span class="chap-count">${b.words.length}語</span></div>
-      </div>
-      <div class="chap-actions"><button class="primary" data-chquiz="">出題</button></div>
-    </div>`,
-    ...(b.chapters || []).map(c => {
-      const n = b.words.filter(w => w.chapterId === c.id).length;
-      return `
-      <div class="list-item word-row chapter-row" data-chquiz="${c.id}">
-        <div class="w">
-          <div class="title">${escapeHtml(c.title)}</div>
-          <div><span class="chap-count">${n}語</span></div>
-        </div>
-        <div class="chap-actions">
-          <button data-chedit="${c.id}">編集</button>
-          <button data-chdel="${c.id}" class="del">削除</button>
-          <button class="primary" data-chquiz="${c.id}">出題</button>
-        </div>
-      </div>`;
-    })].join('');
-  el.innerHTML = rows;
+  const rowHtml = (key, title, words) => `
+    <div class="list-item word-row chapter-row" data-chquiz="${key}">
+      <div class="w"><div class="title">${title}</div></div>
+      <div class="chap-actions"><button class="count-btn" data-chwords="${key}">${words.length}語</button></div>
+    </div>`;
+  el.innerHTML = rowHtml('', '📖 すべて', b.words) +
+    (b.chapters || []).map(c => rowHtml(c.id, escapeHtml(c.title), b.words.filter(w => w.chapterId === c.id))).join('') +
+    rowHtml(UNCAT, '未分類', uncatWords(b));
+  // 行タップ → 出題設定モーダル
   el.querySelectorAll('[data-chquiz]').forEach(node =>
     node.addEventListener('click', e => {
       e.stopPropagation();
       openQuizModal(detailBookId, node.dataset.chquiz || null);
     }));
-  el.querySelectorAll('[data-chedit]').forEach(node =>
-    node.addEventListener('click', e => {
-      e.stopPropagation();
-      const c = chapterOf(b, node.dataset.chedit);
-      editingChapterId = c.id;
-      document.getElementById('chapter-title-input').value = c.title;
-      document.getElementById('chapter-editor').classList.remove('hidden');
-    }));
-  el.querySelectorAll('[data-chdel]').forEach(node =>
-    node.addEventListener('click', e => {
-      e.stopPropagation();
-      const c = chapterOf(b, node.dataset.chdel);
-      if (!confirm(`「${c.title}」を削除しますか？中の単語は「未分類」に移動します。`)) return;
-      b.words.forEach(w => { if (w.chapterId === c.id) w.chapterId = null; });
-      b.chapters = b.chapters.filter(x => x.id !== c.id);
-      b.updatedAt = new Date().toISOString();
-      Store.saveBooks(books);
-      renderDetail();
-    }));
+  // 語数ボタンタップ → 単語一覧モーダル
+  el.querySelectorAll('[data-chwords]').forEach(btn => btn.addEventListener('click', e => {
+    e.stopPropagation();
+    openWordsModal(btn.dataset.chwords || null);
+  }));
 }
-document.getElementById('chapter-add-btn').addEventListener('click', () => {
-  editingChapterId = null;
-  document.getElementById('chapter-title-input').value = '';
-  document.getElementById('chapter-editor').classList.remove('hidden');
-});
-document.getElementById('chapter-cancel-btn').addEventListener('click', () => {
-  document.getElementById('chapter-editor').classList.add('hidden');
-});
-document.getElementById('chapter-save-btn').addEventListener('click', () => {
+// 単語一覧モーダル（表示専用）
+function openWordsModal(chapterId) {
   const b = books.find(x => x.id === detailBookId);
   if (!b) return;
-  const title = document.getElementById('chapter-title-input').value.trim();
-  if (!title) { alert('チャプター名を入力してください'); return; }
-  if (editingChapterId) {
-    chapterOf(b, editingChapterId).title = title;
-  } else {
-    b.chapters.push({ id: uid(), title });
-  }
-  b.updatedAt = new Date().toISOString();
-  Store.saveBooks(books);
-  document.getElementById('chapter-editor').classList.add('hidden');
-  renderDetail();
+  const cid = chapterId || null;
+  const isUncat = cid === UNCAT;
+  const ch = (!isUncat && cid) ? chapterOf(b, cid) : null;
+  const words = cid ? chapterWords(b, cid) : [...b.words];
+  document.getElementById('words-modal-title').textContent = isUncat ? '未分類' : (ch ? ch.title : `${b.title}（すべて）`);
+  document.getElementById('words-modal-sub').textContent = `${words.length}語`;
+  document.getElementById('words-modal-list').innerHTML = words.map(w => `
+    <div class="list-item"><div class="en">${escapeHtml(w.en)}</div><div class="ja">${escapeHtml(w.ja)}</div></div>`).join('')
+    || '<p class="muted">単語がありません。</p>';
+  document.getElementById('words-modal').classList.remove('hidden');
+}
+document.getElementById('words-modal-close-btn').addEventListener('click', () => {
+  document.getElementById('words-modal').classList.add('hidden');
 });
-
+document.getElementById('words-modal').addEventListener('click', e => {
+  if (e.target.id === 'words-modal') e.target.classList.add('hidden');
+});
 function renderDetail() {
   const b = books.find(x => x.id === detailBookId);
   if (!b) { document.getElementById('word-detail').classList.add('hidden'); return; }
@@ -456,91 +423,299 @@ function renderDetail() {
     banner.classList.add('hidden');
   }
   renderChapters();
-  fillChapterSelect(document.getElementById('word-chapter-select'), editingWordId
-    ? (b.words.find(w => w.id === editingWordId)?.chapterId || '')
-    : undefined);
-  fillChapterSelect(document.getElementById('bulk-chapter-select'), undefined);
-  const wl = document.getElementById('word-list');
-  const groups = [
-    ...(b.chapters || []).map(c => ({ title: c.title, words: b.words.filter(w => w.chapterId === c.id) })),
-    { title: '未分類', words: b.words.filter(w => !w.chapterId || !chapterOf(b, w.chapterId)) },
-  ].filter(g => g.words.length);
-  wl.innerHTML = groups.map(g => `
-    <div class="group-header">${escapeHtml(g.title)}（${g.words.length}語）</div>` +
-    g.words.map(w => `
-    <div class="list-item word-row">
-      <div class="w"><div class="en">${escapeHtml(w.en)}</div><div class="ja">${escapeHtml(w.ja)}</div></div>
-      <button class="icon-btn" data-wedit="${w.id}" aria-label="編集">✏️</button>
-      <button class="icon-btn del" data-wdel="${w.id}" aria-label="削除">🗑️</button>
-    </div>`).join('')).join('') || '<p class="muted">単語がありません。「単語追加」から登録してください。</p>';
-  wl.querySelectorAll('[data-wdel]').forEach(el => el.addEventListener('click', () => {
-    if (!confirm('削除しますか？')) return;
-    b.words = b.words.filter(w => w.id !== el.dataset.wdel);
-    b.updatedAt = new Date().toISOString();
-    Store.saveBooks(books); renderDetail();
-  }));
-  wl.querySelectorAll('[data-wedit]').forEach(el => el.addEventListener('click', () => {
-    const w = b.words.find(x => x.id === el.dataset.wedit);
-    editingWordId = w.id;
-    document.getElementById('word-en-input').value = w.en;
-    document.getElementById('word-ja-input').value = w.ja;
-    fillChapterSelect(document.getElementById('word-chapter-select'), w.chapterId || '');
-    document.getElementById('word-editor').classList.remove('hidden');
-  }));
 }
-document.getElementById('word-detail-close').addEventListener('click', () => {
-  detailBookId = null;
-  document.getElementById('word-detail').classList.add('hidden');
-  renderBooks();
-});
-document.getElementById('word-add-btn').addEventListener('click', () => {
-  editingWordId = null;
-  document.getElementById('word-en-input').value = '';
-  document.getElementById('word-ja-input').value = '';
-  fillChapterSelect(document.getElementById('word-chapter-select'), undefined);
-  document.getElementById('word-editor').classList.remove('hidden');
-});
-document.getElementById('word-cancel-btn').addEventListener('click', () => {
-  document.getElementById('word-editor').classList.add('hidden');
-});
-document.getElementById('word-save-btn').addEventListener('click', () => {
+document.getElementById('edit-book-delete-btn').addEventListener('click', () => {
   const b = books.find(x => x.id === detailBookId);
   if (!b) return;
-  const en = document.getElementById('word-en-input').value.trim();
-  const ja = document.getElementById('word-ja-input').value.trim();
-  if (!en || !ja) { alert('英語と日本語の両方を入力してください'); return; }
-  const chapterId = document.getElementById('word-chapter-select').value || null;
-  if (editingWordId) {
-    const w = b.words.find(x => x.id === editingWordId);
-    w.en = en; w.ja = ja; w.chapterId = chapterId;
-  } else {
-    b.words.push({ id: uid(), en, ja, chapterId });
-  }
-  b.updatedAt = new Date().toISOString();
-  Store.saveBooks(books);
-  document.getElementById('word-editor').classList.add('hidden');
-  renderDetail();
-});
-document.getElementById('book-edit-btn').addEventListener('click', () => {
-  const b = books.find(x => x.id === detailBookId);
-  if (!b) return;
-  editingBookId = b.id;
-  document.getElementById('book-editor-title').textContent = '単語帳を編集';
-  document.getElementById('book-title-input').value = b.title;
-  document.getElementById('book-desc-input').value = b.desc || '';
-  setIconPreview(b.icon || null);
-  document.getElementById('book-editor').classList.remove('hidden');
-});
-document.getElementById('book-delete-btn').addEventListener('click', () => {
-  if (!confirm('この単語帳を削除しますか？')) return;
+  if (!confirm(`「${b.title}」を削除しますか？`)) return;
   books = books.filter(x => x.id !== detailBookId);
   Store.saveBooks(books);
   detailBookId = null;
-  document.getElementById('word-detail').classList.add('hidden');
+  document.getElementById('edit-modal').classList.add('hidden');
   renderBooks();
+  renderHome();
 });
-document.getElementById('word-quiz-btn').addEventListener('click', () => {
-  openQuizModal(detailBookId, null);
+// ---------- 編集モーダル ----------
+// 構成: 単語帳設定 → チャプター一覧 → チャプター詳細（名前・単語の編集）。
+// 単語の編集・削除はすべてこのモーダル内で行う。
+function showEditView(id) {
+  ['edit-view-main', 'edit-view-chapter', 'edit-view-bulk'].forEach(s =>
+    document.getElementById(s).classList.toggle('hidden', s !== id));
+}
+function openEditModal() {
+  const b = books.find(x => x.id === detailBookId);
+  if (!b) return;
+  document.getElementById('edit-book-title').value = b.title;
+  document.getElementById('edit-book-desc').value = b.desc || '';
+  setEditIconPreview(b.icon || null);
+  renderEditChapterList();
+  showEditView('edit-view-main');
+  document.getElementById('edit-modal').classList.remove('hidden');
+}
+function closeEditModal() {
+  document.getElementById('edit-modal').classList.add('hidden');
+  renderDetail();
+}
+document.getElementById('word-edit-btn').addEventListener('click', openEditModal);
+document.getElementById('edit-modal-close-btn').addEventListener('click', closeEditModal);
+document.getElementById('edit-modal').addEventListener('click', e => {
+  if (e.target.id === 'edit-modal') closeEditModal();
+});
+
+// 単語帳設定（名前・説明・表紙画像）
+let editIconData = null;
+function setEditIconPreview(dataUrl) {
+  editIconData = dataUrl || null;
+  const img = document.getElementById('edit-book-icon-preview');
+  const clearBtn = document.getElementById('edit-book-icon-clear-btn');
+  const fileInput = document.getElementById('edit-book-icon-input');
+  if (editIconData) {
+    img.src = editIconData;
+    img.classList.remove('hidden');
+    clearBtn.classList.remove('hidden');
+  } else {
+    img.removeAttribute('src');
+    img.classList.add('hidden');
+    clearBtn.classList.add('hidden');
+    if (fileInput) fileInput.value = '';
+  }
+}
+document.getElementById('edit-book-icon-input').addEventListener('change', e => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { alert('画像ファイルを選んでください'); return; }
+  readDownscaledImage(file, setEditIconPreview);
+});
+document.getElementById('edit-book-icon-clear-btn').addEventListener('click', () => setEditIconPreview(null));
+document.getElementById('edit-book-save-btn').addEventListener('click', () => {
+  const b = books.find(x => x.id === detailBookId);
+  if (!b) return;
+  const title = document.getElementById('edit-book-title').value.trim();
+  if (!title) { alert('単語帳名を入力してください'); return; }
+  b.title = title;
+  b.desc = document.getElementById('edit-book-desc').value.trim();
+  b.icon = editIconData;
+  b.updatedAt = new Date().toISOString();
+  Store.saveBooks(books);
+  renderDetail();
+  alert('保存しました');
+});
+
+// チャプター一覧（モーダル内。タップで詳細へ）
+function renderEditChapterList() {
+  const b = books.find(x => x.id === detailBookId);
+  if (!b) return;
+  const el = document.getElementById('edit-chapter-list');
+  el.innerHTML = (b.chapters || []).map(c => {
+    const n = b.words.filter(w => w.chapterId === c.id).length;
+    return `<div class="list-item word-row chapter-row" data-ec="${c.id}">
+      <div class="w">
+        <div class="title">${escapeHtml(c.title)}</div>
+        <div><span class="chap-count">${n}語</span></div>
+      </div>
+      <span class="muted">›</span>
+    </div>`;
+  }).join('') + `<div class="list-item word-row chapter-row" data-ec="${UNCAT}">
+      <div class="w">
+        <div class="title">未分類</div>
+        <div><span class="chap-count">${uncatWords(b).length}語</span></div>
+      </div>
+      <span class="muted">›</span>
+    </div>`;
+  el.querySelectorAll('[data-ec]').forEach(node =>
+    node.addEventListener('click', () => openEditChapter(node.dataset.ec)));
+}
+document.getElementById('edit-chapter-new-btn').addEventListener('click', () => {
+  const b = books.find(x => x.id === detailBookId);
+  if (!b) return;
+  const nc = { id: uid(), title: '新しいチャプター' };
+  b.chapters.push(nc);
+  b.updatedAt = new Date().toISOString();
+  Store.saveBooks(books);
+  renderDetail();
+  openEditChapter(nc.id);
+});
+
+// チャプター詳細（名前編集＋単語の編集・追加・削除）
+function openEditChapter(cid) {
+  const b = books.find(x => x.id === detailBookId);
+  if (!b) return;
+  const isUncat = cid === UNCAT;
+  const c = isUncat ? null : chapterOf(b, cid);
+  if (!isUncat && !c) return;
+  editChapterId = cid;
+  resetEditWordForm();
+  document.getElementById('edit-chapter-name-input').value = isUncat ? '未分類' : c.title;
+  document.getElementById('edit-chapter-name-input').disabled = isUncat;
+  document.getElementById('edit-chapter-name-save-row').classList.toggle('hidden', isUncat);
+  document.getElementById('edit-chapter-delete-row').classList.toggle('hidden', isUncat);
+  refreshMoveSelect();
+  renderEditWordList();
+  showEditView('edit-view-chapter');
+}
+document.getElementById('edit-chapter-back-btn').addEventListener('click', () => {
+  renderEditChapterList();
+  showEditView('edit-view-main');
+  renderDetail();
+});
+document.getElementById('edit-chapter-name-save-btn').addEventListener('click', () => {
+  const b = books.find(x => x.id === detailBookId);
+  const c = b && chapterOf(b, editChapterId);
+  if (!c) return;
+  const title = document.getElementById('edit-chapter-name-input').value.trim();
+  if (!title) { alert('チャプター名を入力してください'); return; }
+  c.title = title;
+  b.updatedAt = new Date().toISOString();
+  Store.saveBooks(books);
+  renderDetail();
+  refreshMoveSelect();
+});
+function resetEditWordForm() {
+  editingWordId = null;
+  document.getElementById('edit-word-en').value = '';
+  document.getElementById('edit-word-ja').value = '';
+  document.getElementById('edit-word-save-btn').textContent = '追加';
+  document.getElementById('edit-word-form').classList.add('hidden');
+}
+document.getElementById('edit-word-new-btn').addEventListener('click', () => {
+  resetEditWordForm();
+  document.getElementById('edit-word-form').classList.remove('hidden');
+  setTimeout(() => document.getElementById('edit-word-en').focus(), 50);
+});
+function renderEditWordList() {
+  const b = books.find(x => x.id === detailBookId);
+  if (!b) return;
+  const words = chapterWords(b, editChapterId);
+  const el = document.getElementById('edit-word-list');
+  el.innerHTML = words.map(w => `
+    <div class="list-item word-row">
+      <input type="checkbox" class="word-check" value="${w.id}" aria-label="選択">
+      <div class="w"><div class="en">${escapeHtml(w.en)}</div><div class="ja">${escapeHtml(w.ja)}</div></div>
+      <button class="icon-btn" data-ewedit="${w.id}" aria-label="編集">✏️</button>
+      <button class="icon-btn del" data-ewdel="${w.id}" aria-label="削除">🗑️</button>
+    </div>`).join('') || '<p class="muted">単語がありません。下のフォームから追加してください。</p>';
+  el.querySelectorAll('[data-ewdel]').forEach(node => node.addEventListener('click', () => {
+    if (!confirm('削除しますか？')) return;
+    b.words = b.words.filter(w => w.id !== node.dataset.ewdel);
+    if (editingWordId === node.dataset.ewdel) resetEditWordForm();
+    b.updatedAt = new Date().toISOString();
+    Store.saveBooks(books);
+    renderDetail();
+    renderEditWordList();
+  }));
+  el.querySelectorAll('[data-ewedit]').forEach(node => node.addEventListener('click', () => {
+    const w = b.words.find(x => x.id === node.dataset.ewedit);
+    editingWordId = w.id;
+    document.getElementById('edit-word-en').value = w.en;
+    document.getElementById('edit-word-ja').value = w.ja;
+    document.getElementById('edit-word-save-btn').textContent = '保存';
+    document.getElementById('edit-word-form').classList.remove('hidden');
+  }));
+  refreshMoveBox();
+}
+function refreshMoveBox() {
+  const n = document.querySelectorAll('#edit-word-list .word-check:checked').length;
+  document.getElementById('edit-move-box').classList.toggle('hidden', n === 0);
+}
+document.getElementById('edit-word-list').addEventListener('change', e => {
+  if (e.target.classList && e.target.classList.contains('word-check')) refreshMoveBox();
+});
+document.getElementById('edit-word-save-btn').addEventListener('click', () => {
+  const b = books.find(x => x.id === detailBookId);
+  if (!b) return;
+  const en = document.getElementById('edit-word-en').value.trim();
+  const ja = document.getElementById('edit-word-ja').value.trim();
+  if (!en || !ja) { alert('英語と日本語の両方を入力してください'); return; }
+  if (editingWordId) {
+    const w = b.words.find(x => x.id === editingWordId);
+    w.en = en; w.ja = ja;
+  } else {
+    b.words.push({ id: uid(), en, ja, chapterId: editChapterId === UNCAT ? null : editChapterId });
+  }
+  b.updatedAt = new Date().toISOString();
+  Store.saveBooks(books);
+  renderDetail();
+  renderEditWordList();
+  resetEditWordForm();
+});
+// 選択した単語を他のチャプターへ移動
+function refreshMoveSelect() {
+  const b = books.find(x => x.id === detailBookId);
+  if (!b) return;
+  const sel = document.getElementById('edit-move-select');
+  const cur = sel.value;
+  sel.innerHTML = (b.chapters || []).map(c => `<option value="${c.id}">${escapeHtml(c.title)}</option>`).join('')
+    + `<option value="${UNCAT}">未分類</option>`;
+  if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+}
+document.getElementById('edit-move-btn').addEventListener('click', () => {
+  const b = books.find(x => x.id === detailBookId);
+  if (!b) return;
+  const checked = [...document.querySelectorAll('#edit-word-list .word-check:checked')].map(cb => cb.value);
+  if (!checked.length) { alert('移動する単語にチェックを入れてください'); return; }
+  const dest = document.getElementById('edit-move-select').value;
+  const destId = dest === UNCAT ? null : dest;
+  b.words.forEach(w => { if (checked.includes(w.id)) w.chapterId = destId; });
+  b.updatedAt = new Date().toISOString();
+  Store.saveBooks(books);
+  resetEditWordForm();
+  renderDetail();
+  renderEditWordList();
+});
+document.getElementById('edit-chapter-delete-btn').addEventListener('click', () => {
+  const b = books.find(x => x.id === detailBookId);
+  const c = b && chapterOf(b, editChapterId);
+  if (!c) return;
+  if (!confirm(`「${c.title}」を削除しますか？中の単語は「未分類」に移動します。`)) return;
+  b.words.forEach(w => { if (w.chapterId === c.id) w.chapterId = null; });
+  b.chapters = b.chapters.filter(x => x.id !== c.id);
+  b.updatedAt = new Date().toISOString();
+  Store.saveBooks(books);
+  renderDetail();
+  renderEditChapterList();
+  showEditView('edit-view-main');
+});
+document.getElementById('edit-bulk-go-btn').addEventListener('click', () => {
+  document.getElementById('edit-bulk-text').value = '';
+  document.getElementById('edit-bulk-preview').textContent = '';
+  showEditView('edit-view-bulk');
+});
+document.getElementById('edit-bulk-text').addEventListener('input', e => {
+  const { ok, ng } = parseBulkText(e.target.value);
+  document.getElementById('edit-bulk-preview').textContent =
+    `${ok.length}件 取り込み可能` + (ng.length ? ` ／ ${ng.length}行 解析不可` : '');
+});
+document.getElementById('edit-bulk-add-btn').addEventListener('click', () => {
+  const b = books.find(x => x.id === detailBookId);
+  if (!b) return;
+  const { ok, ng } = parseBulkText(document.getElementById('edit-bulk-text').value);
+  if (!ok.length) { alert('取り込める行がありません。形式を確認してください。'); return; }
+  ok.forEach(w => { w.chapterId = null; }); // 一括追加は未分類へ
+  const existing = new Set(b.words.map(w => w.en.trim().toLowerCase()));
+  const seen = new Set();
+  const fresh = ok.filter(w => {
+    const k = w.en.trim().toLowerCase();
+    if (existing.has(k) || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  const skipped = ok.length - fresh.length;
+  const CHUNK = 1000;
+  for (let i = 0; i < fresh.length; i += CHUNK) {
+    b.words.push(...fresh.slice(i, i + CHUNK));
+  }
+  b.updatedAt = new Date().toISOString();
+  Store.saveBooks(books);
+  document.getElementById('edit-bulk-text').value = '';
+  document.getElementById('edit-bulk-preview').textContent = '';
+  renderDetail();
+  alert(`${fresh.length}件 追加しました（未分類）` +
+    (skipped ? `（重複 ${skipped}件スキップ）` : '') +
+    (ng.length ? `（解析不可 ${ng.length}行あり）` : ''));
+});
+document.getElementById('edit-bulk-back-btn').addEventListener('click', () => {
+  renderEditChapterList();
+  showEditView('edit-view-main');
 });
 
 // ---------- 一括追加（コピペ・数千語対応） ----------
@@ -581,64 +756,23 @@ function parseBulkText(text) {
   }
   return { ok, ng };
 }
-document.getElementById('word-bulk-btn').addEventListener('click', () => {
-  document.getElementById('bulk-editor').classList.toggle('hidden');
-  document.getElementById('bulk-preview').textContent = '';
-});
-document.getElementById('bulk-cancel-btn').addEventListener('click', () => {
-  document.getElementById('bulk-editor').classList.add('hidden');
-});
-document.getElementById('bulk-textarea').addEventListener('input', e => {
-  const { ok, ng } = parseBulkText(e.target.value);
-  document.getElementById('bulk-preview').textContent =
-    `${ok.length}件 取り込み可能` + (ng.length ? ` ／ ${ng.length}行 解析不可` : '');
-});
-document.getElementById('bulk-add-btn').addEventListener('click', () => {
-  const b = books.find(x => x.id === detailBookId);
-  if (!b) return;
-  const text = document.getElementById('bulk-textarea').value;
-  const { ok, ng } = parseBulkText(text);
-  if (!ok.length) { alert('取り込める行がありません。形式を確認してください。'); return; }
-  const chapterId = document.getElementById('bulk-chapter-select').value || null;
-  ok.forEach(w => { w.chapterId = chapterId; });
-  // 重複除去（既存の英語と今回分で）
-  const existing = new Set(b.words.map(w => w.en.trim().toLowerCase()));
-  const seen = new Set();
-  const fresh = ok.filter(w => {
-    const k = w.en.trim().toLowerCase();
-    if (existing.has(k) || seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
-  const skipped = ok.length - fresh.length;
-  // 数千件でもUIを固めないよう分割追加
-  const CHUNK = 1000;
-  for (let i = 0; i < fresh.length; i += CHUNK) {
-    b.words.push(...fresh.slice(i, i + CHUNK));
-  }
-  b.updatedAt = new Date().toISOString();
-  Store.saveBooks(books);
-  document.getElementById('bulk-textarea').value = '';
-  document.getElementById('bulk-editor').classList.add('hidden');
-  renderDetail();
-  alert(`${fresh.length}件 追加しました` +
-    (skipped ? `（重複 ${skipped}件スキップ）` : '') +
-    (ng.length ? `（解析不可 ${ng.length}行あり）` : ''));
-});
 
 // ---------- 出題設定モーダル（チャプター選択後に中央表示） ----------
 let quizTarget = { bookId: null, chapterId: null };
 function openQuizModal(bookId, chapterId) {
   const b = books.find(x => x.id === bookId);
   if (!b) return;
-  const ch = chapterId ? chapterOf(b, chapterId) : null;
-  const n = chapterWords(b, chapterId || null).length;
+  const cid = chapterId || null;
+  const isUncat = cid === UNCAT;
+  const ch = (!isUncat && cid) ? chapterOf(b, cid) : null;
+  const title = isUncat ? '未分類' : (ch ? ch.title : null);
+  const n = chapterWords(b, cid).length;
   if (!n) {
-    alert(ch ? 'このチャプターに単語がありません' : 'この単語帳に単語がありません');
+    alert(title ? 'このチャプターに単語がありません' : 'この単語帳に単語がありません');
     return;
   }
-  quizTarget = { bookId, chapterId: chapterId || null };
-  document.getElementById('quiz-modal-title').textContent = ch ? ch.title : `${b.title}（すべて）`;
+  quizTarget = { bookId, chapterId: cid };
+  document.getElementById('quiz-modal-title').textContent = title || `${b.title}（すべて）`;
   document.getElementById('quiz-modal-sub').textContent = `${b.title}・${n}語`;
   document.getElementById('quiz-modal').classList.remove('hidden');
 }
@@ -674,10 +808,11 @@ function normalizeJa(s) { return (s || '').trim().replace(/\s+/g, ''); }
 function startQuiz(bookId, { chapterId = null, mode = 'en-ja', format = 'input', count = 10, shuffle = true } = {}) {
   const b = books.find(x => x.id === bookId);
   if (!b) { alert('単語帳を選択してください'); return; }
-  const ch = chapterId ? chapterOf(b, chapterId) : null;
-  const chapterTitle = ch ? ch.title : null;
+  const isUncat = chapterId === UNCAT;
+  const ch = (!isUncat && chapterId) ? chapterOf(b, chapterId) : null;
+  const chapterTitle = isUncat ? '未分類' : (ch ? ch.title : null);
   let words = chapterWords(b, chapterId);
-  if (!words.length) { alert(ch ? 'このチャプターに単語がありません' : 'この単語帳に単語がありません'); return; }
+  if (!words.length) { alert(chapterTitle ? 'このチャプターに単語がありません' : 'この単語帳に単語がありません'); return; }
   if (format === 'choice' && words.length < 2 && b.words.length < 2) { alert('4択には2語以上必要です'); return; }
   if (shuffle) words = shuffleArr([...words]);
   if (count > 0) words = words.slice(0, count);

@@ -57,51 +57,14 @@
       </div>
       <div class="row-between">
         <h3 id="word-detail-title"></h3>
-        <button id="word-detail-close">閉じる</button>
+        <div class="header-actions">
+          <button id="book-share-btn" class="icon-btn" aria-label="共有">📤</button>
+          <button id="word-edit-btn" class="icon-btn" aria-label="編集">✏️</button>
+        </div>
       </div>
       <p id="word-detail-desc" class="muted"></p>
-      <div class="row">
-        <button id="word-add-btn" class="primary">＋ 単語追加</button>
-        <button id="word-bulk-btn">⧉ 一括追加</button>
-        <button id="word-quiz-btn">帳全体でクイズ</button>
-        <button id="book-export-btn">共有する</button>
-        <button id="book-edit-btn">帳を編集</button>
-        <button id="book-delete-btn" class="danger">帳を削除</button>
-      </div>
       <h4>チャプター</h4>
       <div id="chapter-list" class="list"></div>
-      <div class="row">
-        <button id="chapter-add-btn">＋ チャプター追加</button>
-      </div>
-      <div id="chapter-editor" class="inline-editor hidden">
-        <input id="chapter-title-input" placeholder="チャプター名 (例: 第1章 動詞)" maxlength="50">
-        <div class="row">
-          <button id="chapter-save-btn" class="primary">保存</button>
-          <button id="chapter-cancel-btn">キャンセル</button>
-        </div>
-      </div>
-      <div id="bulk-editor" class="inline-editor hidden">
-        <h4>コピペで一括追加（数千語OK）</h4>
-        <p class="muted">1行1語。区切りは自動判定: タブ / カンマ / <code>:</code> / <code>=</code> / スペース。例:<br>
-        <code>apple[TAB]りんご</code><br><code>book,本</code><br><code>challenge:挑戦</code></p>
-        <textarea id="bulk-textarea" rows="8" placeholder="apple	りんご&#10;book	本&#10;challenge	挑戦"></textarea>
-        <label>追加先チャプター<select id="bulk-chapter-select"></select></label>
-        <div id="bulk-preview" class="muted"></div>
-        <div class="row">
-          <button id="bulk-add-btn" class="primary">追加する</button>
-          <button id="bulk-cancel-btn">閉じる</button>
-        </div>
-      </div>
-      <div id="word-editor" class="inline-editor hidden">
-        <input id="word-en-input" placeholder="英語 (例: apple)" maxlength="100">
-        <input id="word-ja-input" placeholder="日本語 (例: りんご)" maxlength="100">
-        <label>チャプター<select id="word-chapter-select"></select></label>
-        <div class="row">
-          <button id="word-save-btn" class="primary">保存</button>
-          <button id="word-cancel-btn">キャンセル</button>
-        </div>
-      </div>
-      <div id="word-list" class="list"></div>
     </div>
   </section>
 
@@ -220,6 +183,83 @@
     </div>
     <button id="newbook-cancel-btn" class="danger-text">キャンセル</button>
     <input type="file" id="import-file-input" accept="application/json,.json" class="hidden">
+  </div>
+</div>
+
+<!-- 編集モーダル（単語帳設定＋チャプター＋単語の編集） -->
+<div id="edit-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <h3>編集</h3>
+    <div id="edit-view-main">
+      <label>単語帳名<input id="edit-book-title" maxlength="50"></label>
+      <label>説明<input id="edit-book-desc" maxlength="100"></label>
+      <label>表紙画像</label>
+      <div class="cover-row">
+        <img id="edit-book-icon-preview" class="cover-preview hidden" alt="表紙プレビュー">
+        <div class="cover-actions">
+          <input type="file" id="edit-book-icon-input" accept="image/*">
+          <button id="edit-book-icon-clear-btn" class="hidden">画像を消す</button>
+        </div>
+      </div>
+      <div class="row">
+        <button id="edit-book-save-btn" class="primary">単語帳設定を保存</button>
+      </div>
+      <h4>チャプター</h4>
+      <div id="edit-chapter-list" class="list"></div>
+      <button id="edit-chapter-new-btn">＋ 新規チャプター</button>
+      <div class="row">
+        <button id="edit-bulk-go-btn">⧉ 一括追加（未分類に追加）</button>
+      </div>
+      <div class="row">
+        <button id="edit-book-delete-btn" class="danger">この単語帳を削除</button>
+      </div>
+    </div>
+    <div id="edit-view-chapter" class="hidden">
+      <div class="row">
+        <button id="edit-chapter-back-btn">← チャプター一覧へ</button>
+      </div>
+      <label>チャプター名<input id="edit-chapter-name-input" maxlength="50"></label>
+      <div class="row" id="edit-chapter-name-save-row">
+        <button id="edit-chapter-name-save-btn" class="primary">名前を保存</button>
+      </div>
+      <h4>単語一覧</h4>
+      <div id="edit-word-list" class="list"></div>
+      <div class="inline-editor hidden" id="edit-move-box">
+        <label>選択した単語の移動先<select id="edit-move-select"></select></label>
+        <div class="row"><button id="edit-move-btn" class="primary">選択を移動</button></div>
+      </div>
+      <div id="edit-word-form" class="inline-editor hidden">
+        <input id="edit-word-en" placeholder="英語 (例: apple)" maxlength="100">
+        <input id="edit-word-ja" placeholder="日本語 (例: りんご)" maxlength="100">
+        <div class="row">
+          <button id="edit-word-save-btn" class="primary">追加</button>
+        </div>
+      </div>
+      <button id="edit-word-new-btn">＋ 新規作成</button>
+      <div class="row" id="edit-chapter-delete-row">
+        <button id="edit-chapter-delete-btn" class="danger">このチャプターを削除</button>
+      </div>
+    </div>
+    <div id="edit-view-bulk" class="hidden">
+      <p class="muted">追加先: <b>未分類</b>（1行1語。区切りは自動判定: タブ / カンマ / <code>:</code> / <code>=</code> / スペース）</p>
+      <textarea id="edit-bulk-text" rows="6" placeholder="apple	りんご&#10;book	本"></textarea>
+      <div id="edit-bulk-preview" class="muted"></div>
+      <div class="row">
+        <button id="edit-bulk-add-btn" class="primary">追加する</button>
+        <button id="edit-bulk-back-btn">戻る</button>
+      </div>
+    </div>
+    <button id="edit-modal-close-btn" class="danger-text">閉じる</button>
+  </div>
+</div>
+
+<!-- 単語一覧モーダル（N語ボタンタップ時に表示） -->
+<div id="words-modal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <h3 id="words-modal-title"></h3>
+    <p id="words-modal-sub" class="muted"></p>
+    <div id="words-modal-list" class="list"></div>
+    <button id="words-modal-close-btn" class="danger-text">閉じる</button>
   </div>
 </div>
 

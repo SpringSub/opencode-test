@@ -248,8 +248,35 @@ h4 { margin: 4px 0 6px; font-size: 14px; }
 }
 .chap-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .chap-actions button { padding: 8px 10px; min-height: 36px; font-size: 13px; }
+#edit-chapter-new-btn, #edit-word-new-btn { width: 100%; margin-top: 8px; border-style: dashed; }
+#edit-view-main h4 { margin-top: 34px; }
+.cover-row { display: flex; gap: 12px; align-items: flex-start; margin-top: 4px; }
+.cover-preview {
+  width: 120px;
+  aspect-ratio: 1 / 1.4142;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  flex-shrink: 0;
+}
+.cover-actions { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.cover-actions input { margin-top: 0; }
+.header-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.count-btn {
+  background: #eef2ff;
+  color: var(--primary);
+  font-weight: bold;
+  border: 1px solid #c7d2fe;
+  border-radius: 99px;
+  padding: 8px 14px;
+  min-height: 44px;
+  white-space: nowrap;
+}
+#words-modal-list .en { font-weight: bold; }
+#words-modal-list .ja { color: var(--muted); font-size: 13px; }
 .group-header { font-size: 13px; font-weight: bold; color: var(--muted); margin: 12px 0 2px; }
-.icon-btn { font-size: 18px; padding: 8px 12px; min-height: 44px; line-height: 1; }
+.icon-btn { font-size: 18px; padding: 8px 0; width: 44px; min-height: 44px; line-height: 1; text-align: center; flex-shrink: 0; }
+.word-check { width: 22px; height: 22px; flex-shrink: 0; margin: 0; padding: 0; accent-color: var(--primary); }
 /* 単語帳バナー（比率を変えず横幅フィット＋下部グラデーションでカット） */
 .book-banner {
   position: relative;
