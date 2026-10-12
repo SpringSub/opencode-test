@@ -117,6 +117,8 @@ button.danger-text { background: none; border: none; color: var(--muted); width:
 }
 .bottom-nav button span { font-size: 11px; margin-top: 2px; }
 .bottom-nav button.active { color: var(--primary); font-weight: bold; }
+body.quiz-active { padding-bottom: 12px; }
+body.quiz-active .bottom-nav { display: none; }
 .inline-editor { background: #f8fafc; border-radius: 10px; padding: 10px; margin: 10px 0; }
 .word-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .word-row .w { flex: 1; }

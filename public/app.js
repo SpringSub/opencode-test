@@ -843,6 +843,7 @@ function startQuiz(bookId, { chapterId = null, mode = 'en-ja', format = 'input',
   document.getElementById('quiz-setup').classList.add('hidden');
   document.getElementById('quiz-result').classList.add('hidden');
   document.getElementById('quiz-play').classList.remove('hidden');
+  document.body.classList.add('quiz-active');
   renderQuestion();
   setTimeout(() => document.getElementById('quiz-answer-input').focus(), 100);
 }
@@ -893,7 +894,11 @@ function answerCurrent(gaveUp = false) {
   showFeedback(q);
   document.getElementById('quiz-answer-btn').classList.add('hidden');
 }
-function showFeedback(q) {
+function showFeedback(q, text = true) {
+  document.getElementById('quiz-next-btn').textContent =
+    quiz.index + 1 >= quiz.questions.length ? '結果を見る' : '次の問題へ';
+  document.getElementById('quiz-next-btn').classList.remove('hidden');
+  if (!text) return; // 4択はボタンの色で正誤表示するため文言は出さない
   const fb = document.getElementById('quiz-feedback');
   const correctAns = q.dir === 'en-ja' ? q.ja : q.en;
   fb.classList.remove('hidden', 'ok', 'ng');
@@ -901,9 +906,6 @@ function showFeedback(q) {
   fb.innerHTML = q.correct
     ? `⭕ 正解！`
     : `❌ 不正解… 正解は <span class="answer">${escapeHtml(correctAns)}</span>${q.user ? `<br>あなたの回答: ${escapeHtml(q.user)}` : ''}`;
-  document.getElementById('quiz-next-btn').textContent =
-    quiz.index + 1 >= quiz.questions.length ? '結果を見る' : '次の問題へ';
-  document.getElementById('quiz-next-btn').classList.remove('hidden');
 }
 function answerChoice(i) {
   const q = currentQ();
@@ -915,7 +917,7 @@ function answerChoice(i) {
     if (bi === q.answerIndex) btn.classList.add('correct');
     else if (bi === i) btn.classList.add('wrong');
   });
-  showFeedback(q);
+  showFeedback(q, false);
 }
 document.getElementById('quiz-answer-btn').addEventListener('click', () => answerCurrent(false));
 document.getElementById('quiz-giveup-btn').addEventListener('click', () => answerCurrent(true));
@@ -935,6 +937,7 @@ document.getElementById('quiz-quit-btn').addEventListener('click', () => {
   quiz = null;
   document.getElementById('quiz-play').classList.add('hidden');
   document.getElementById('quiz-setup').classList.remove('hidden');
+  document.body.classList.remove('quiz-active');
   showView('view-home');
 });
 
@@ -957,6 +960,7 @@ function finishQuiz() {
   Store.saveRecords(records);
 
   document.getElementById('quiz-play').classList.add('hidden');
+  document.body.classList.remove('quiz-active');
   const res = document.getElementById('quiz-result');
   res.classList.remove('hidden');
   document.getElementById('quiz-result-summary').innerHTML = `
