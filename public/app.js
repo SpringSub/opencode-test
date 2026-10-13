@@ -468,23 +468,38 @@ function setEditIconPreview(dataUrl) {
   editIconData = dataUrl || null;
   const img = document.getElementById('edit-book-icon-preview');
   const placeholder = document.getElementById('edit-cover-placeholder');
-  const clearBtn = document.getElementById('edit-book-icon-clear-btn');
   const fileInput = document.getElementById('edit-book-icon-input');
   if (editIconData) {
     img.src = editIconData;
     img.classList.remove('hidden');
     placeholder?.classList.add('hidden');
-    clearBtn.classList.remove('hidden');
   } else {
     img.removeAttribute('src');
     img.classList.add('hidden');
     placeholder?.classList.remove('hidden');
-    clearBtn.classList.add('hidden');
     if (fileInput) fileInput.value = '';
   }
 }
+function closeCoverMenu() {
+  document.getElementById('cover-menu-modal').classList.add('hidden');
+}
 document.getElementById('edit-cover-tap').addEventListener('click', () => {
+  const removeBtn = document.getElementById('cover-remove-btn');
+  removeBtn.classList.toggle('hidden', !editIconData);
+  removeBtn.parentElement.classList.toggle('hidden', !editIconData);
+  document.getElementById('cover-menu-modal').classList.remove('hidden');
+});
+document.getElementById('cover-change-btn').addEventListener('click', () => {
+  closeCoverMenu();
   document.getElementById('edit-book-icon-input').click();
+});
+document.getElementById('cover-remove-btn').addEventListener('click', () => {
+  closeCoverMenu();
+  setEditIconPreview(null);
+});
+document.getElementById('cover-menu-cancel-btn').addEventListener('click', closeCoverMenu);
+document.getElementById('cover-menu-modal').addEventListener('click', e => {
+  if (e.target.id === 'cover-menu-modal') closeCoverMenu();
 });
 document.getElementById('edit-book-icon-input').addEventListener('change', e => {
   const file = e.target.files && e.target.files[0];
@@ -492,7 +507,6 @@ document.getElementById('edit-book-icon-input').addEventListener('change', e => 
   if (!file.type.startsWith('image/')) { alert('画像ファイルを選んでください'); return; }
   readDownscaledImage(file, setEditIconPreview);
 });
-document.getElementById('edit-book-icon-clear-btn').addEventListener('click', () => setEditIconPreview(null));
 document.getElementById('edit-book-save-btn').addEventListener('click', () => {
   const b = books.find(x => x.id === detailBookId);
   if (!b) return;
@@ -514,14 +528,15 @@ function renderEditChapterList() {
   const el = document.getElementById('edit-chapter-list');
   el.innerHTML = (b.chapters || []).map(c => {
     const n = b.words.filter(w => w.chapterId === c.id).length;
-    return `<div class="list-item word-row chapter-row" data-ec="${c.id}">
+    return `<div class="list-item word-row chapter-row sortable-item" data-ec="${c.id}" data-sort-id="${c.id}">
+      <span class="drag-handle" data-drag-handle aria-label="並べ替え">⠿</span>
       <div class="w">
         <div class="title">${escapeHtml(c.title)}</div>
         <div><span class="chap-count">${n}語</span></div>
       </div>
       <span class="muted">›</span>
     </div>`;
-  }).join('') + `<div class="list-item word-row chapter-row" data-ec="${UNCAT}">
+  }).join('') + `<div class="list-item word-row chapter-row" data-ec="${UNCAT}" data-fixed="1">
       <div class="w">
         <div class="title">未分類</div>
         <div><span class="chap-count">${uncatWords(b).length}語</span></div>
@@ -581,12 +596,24 @@ function resetEditWordForm() {
   document.getElementById('edit-word-en').value = '';
   document.getElementById('edit-word-ja').value = '';
   document.getElementById('edit-word-save-btn').textContent = '追加';
-  document.getElementById('edit-word-form').classList.add('hidden');
+  document.getElementById('word-form-title').textContent = '単語を追加';
+  document.getElementById('word-form-modal').classList.add('hidden');
+}
+function openWordFormModal(isEdit) {
+  document.getElementById('word-form-title').textContent = isEdit ? '単語を編集' : '単語を追加';
+  document.getElementById('edit-word-save-btn').textContent = isEdit ? '保存' : '追加';
+  document.getElementById('word-form-modal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('edit-word-en').focus(), 50);
 }
 document.getElementById('edit-word-new-btn').addEventListener('click', () => {
   resetEditWordForm();
-  document.getElementById('edit-word-form').classList.remove('hidden');
-  setTimeout(() => document.getElementById('edit-word-en').focus(), 50);
+  openWordFormModal(false);
+});
+document.getElementById('word-form-cancel-btn').addEventListener('click', () => {
+  resetEditWordForm();
+});
+document.getElementById('word-form-modal').addEventListener('click', e => {
+  if (e.target.id === 'word-form-modal') resetEditWordForm();
 });
 function renderEditWordList() {
   const b = books.find(x => x.id === detailBookId);
@@ -594,12 +621,13 @@ function renderEditWordList() {
   const words = chapterWords(b, editChapterId);
   const el = document.getElementById('edit-word-list');
   el.innerHTML = words.map(w => `
-    <div class="list-item word-row">
+    <div class="list-item word-row sortable-item" data-sort-id="${w.id}">
+      <span class="drag-handle" data-drag-handle aria-label="並べ替え">⠿</span>
       <input type="checkbox" class="word-check" value="${w.id}" aria-label="選択">
       <div class="w"><div class="en">${escapeHtml(w.en)}</div><div class="ja">${escapeHtml(w.ja)}</div></div>
       <button class="icon-btn" data-ewedit="${w.id}" aria-label="編集">✏️</button>
       <button class="icon-btn del" data-ewdel="${w.id}" aria-label="削除">🗑️</button>
-    </div>`).join('') || '<p class="muted">単語がありません。下のフォームから追加してください。</p>';
+    </div>`).join('') || '<p class="muted">単語がありません。「＋ 新規作成」から追加してください。</p>';
   el.querySelectorAll('[data-ewdel]').forEach(node => node.addEventListener('click', () => {
     if (!confirm('削除しますか？')) return;
     b.words = b.words.filter(w => w.id !== node.dataset.ewdel);
@@ -611,11 +639,11 @@ function renderEditWordList() {
   }));
   el.querySelectorAll('[data-ewedit]').forEach(node => node.addEventListener('click', () => {
     const w = b.words.find(x => x.id === node.dataset.ewedit);
+    if (!w) return;
     editingWordId = w.id;
     document.getElementById('edit-word-en').value = w.en;
     document.getElementById('edit-word-ja').value = w.ja;
-    document.getElementById('edit-word-save-btn').textContent = '保存';
-    document.getElementById('edit-word-form').classList.remove('hidden');
+    openWordFormModal(true);
   }));
   refreshMoveBox();
 }
@@ -643,6 +671,14 @@ document.getElementById('edit-word-save-btn').addEventListener('click', () => {
   renderDetail();
   renderEditWordList();
   resetEditWordForm();
+});
+['edit-word-en', 'edit-word-ja'].forEach(id => {
+  document.getElementById(id).addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      document.getElementById('edit-word-save-btn').click();
+    }
+  });
 });
 // 選択した単語を他のチャプターへ移動
 function refreshMoveSelect() {
@@ -1109,6 +1145,161 @@ document.getElementById('records-clear-btn').addEventListener('click', () => {
   renderRecords(); renderHome();
 });
 
+// ---------- ドラッグ並べ替え（編集画面のチャプター一覧・単語一覧） ----------
+// 左側ハンドルからのPointerドラッグ専用。タップ・チェック・編集・削除はそのまま動作する。
+// ドラッグ中は他アイテムをtransformで滑らかに上下させる（CSS transition）。
+function attachDragSort(listEl, onReorder) {
+  if (!listEl || listEl.dataset.sortBound) return;
+  listEl.dataset.sortBound = '1';
+  let dragEl = null, items = [], oldIndex = -1, newIndex = -1;
+  let startY = 0, dragH = 0, gap = 8, dragging = false, moved = false;
+  let scrollEl = listEl, rafId = 0, lastClientY = 0, suppressClick = false;
+
+  const sortableItems = () => [...listEl.querySelectorAll(':scope > .sortable-item')];
+  const autoScroll = () => {
+    if (!dragging) return;
+    const r = scrollEl.getBoundingClientRect();
+    const M = 48, S = 12;
+    if (lastClientY < r.top + M) scrollEl.scrollTop -= S;
+    else if (lastClientY > r.bottom - M) scrollEl.scrollTop += S;
+    else { rafId = 0; return; }
+    // スクロールで位置がずれるため再計算
+    updatePositions(lastClientY);
+    rafId = requestAnimationFrame(autoScroll);
+  };
+  const updatePositions = (clientY) => {
+    const dy = clientY - startY;
+    dragEl.style.transform = `translateY(${dy}px)`;
+    // offsetTop基準（transformの影響を受けない）で挿入先を算出
+    // ※リストは position:relative のため offsetTop はリスト内相対で安定
+    const tops = items.map(el => el.offsetTop);
+    const mid = items.map((el, i) => tops[i] + el.offsetHeight / 2);
+    const listTop = listEl.getBoundingClientRect().top;
+    const relY = clientY - listTop + listEl.scrollTop;
+    let slot = items.length - 1;
+    for (let i = 0; i < items.length; i++) {
+      if (relY < mid[i]) { slot = i; break; }
+    }
+    newIndex = slot;
+    const shift = dragH + gap;
+    items.forEach((el, i) => {
+      if (el === dragEl) return;
+      let t = 0;
+      if (oldIndex < newIndex && i > oldIndex && i <= newIndex) t = -shift;
+      else if (newIndex < oldIndex && i >= newIndex && i < oldIndex) t = shift;
+      el.style.transform = t ? `translateY(${t}px)` : '';
+    });
+  };
+
+  listEl.addEventListener('pointerdown', (e) => {
+    const handle = e.target.closest('[data-drag-handle]');
+    if (!handle || !listEl.contains(handle)) return;
+    const row = handle.closest('.sortable-item');
+    if (!row) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragEl = row;
+    items = sortableItems();
+    oldIndex = items.indexOf(dragEl);
+    newIndex = oldIndex;
+    startY = e.clientY;
+    lastClientY = e.clientY;
+    dragH = dragEl.offsetHeight;
+    const cs = getComputedStyle(listEl);
+    gap = parseFloat(cs.rowGap || cs.gap) || 8;
+    dragging = false;
+    moved = false;
+    const move = (ev) => {
+      lastClientY = ev.clientY;
+      if (!dragging && Math.abs(ev.clientY - startY) > 5) {
+        dragging = true;
+        moved = true;
+        suppressClick = true;
+        dragEl.classList.add('sortable-drag');
+        listEl.classList.add('sortable-sorting');
+        rafId = requestAnimationFrame(autoScroll);
+      }
+      if (dragging) updatePositions(ev.clientY);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = 0;
+      if (dragging) {
+        dragEl.classList.remove('sortable-drag');
+        listEl.classList.remove('sortable-sorting');
+        dragEl.style.transform = '';
+        items.forEach(el => { el.style.transform = ''; });
+        const from = oldIndex, to = newIndex;
+        dragEl = null;
+        // クリック抑止（行タップでチャプターが開くのを防ぐ）
+        setTimeout(() => { suppressClick = false; }, 50);
+        if (to !== from) onReorder(from, to);
+      } else {
+        dragEl = null;
+      }
+      dragging = false;
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  });
+  // ドラッグ直後のクリックでチャプターが開かないようにする
+  listEl.addEventListener('click', (e) => {
+    if (suppressClick) {
+      e.stopPropagation();
+      e.preventDefault();
+      // moved フラグは次回pointerdownまで維持せず、タイマーで解除済み
+    }
+  }, true);
+}
+
+function moveArray(arr, from, to) {
+  if (from === to) return arr;
+  const [v] = arr.splice(from, 1);
+  arr.splice(to, 0, v);
+  return arr;
+}
+
+function initChapterSort() {
+  attachDragSort(document.getElementById('edit-chapter-list'), (from, to) => {
+    const b = books.find(x => x.id === detailBookId);
+    if (!b || !Array.isArray(b.chapters)) return;
+    moveArray(b.chapters, from, to);
+    b.updatedAt = new Date().toISOString();
+    Store.saveBooks(books);
+    renderDetail();
+    renderEditChapterList();
+  });
+}
+
+function initWordSort() {
+  attachDragSort(document.getElementById('edit-word-list'), (from, to) => {
+    const b = books.find(x => x.id === detailBookId);
+    if (!b) return;
+    // 表示中のチャプターに属する単語をb.words上の位置を保ったまま並べ替え
+    const isUncat = editChapterId === UNCAT;
+    const visible = chapterWords(b, editChapterId);
+    if (from < 0 || to < 0 || from >= visible.length || to >= visible.length) return;
+    const reordered = [...visible];
+    moveArray(reordered, from, to);
+    const slots = [];
+    b.words.forEach((w, idx) => {
+      const belongs = isUncat
+        ? (!w.chapterId || !chapterOf(b, w.chapterId))
+        : (w.chapterId === editChapterId);
+      if (belongs) slots.push(idx);
+    });
+    reordered.forEach((w, i) => { b.words[slots[i]] = w; });
+    b.updatedAt = new Date().toISOString();
+    Store.saveBooks(books);
+    renderDetail();
+    renderEditWordList();
+  });
+}
+
 // ---------- util ----------
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1118,3 +1309,5 @@ function escapeHtml(s) {
 renderHome();
 renderBooks();
 renderRecords();
+initChapterSort();
+initWordSort();

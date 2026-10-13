@@ -198,7 +198,6 @@
             <span id="edit-cover-placeholder" class="cover-placeholder">📷<span>タップして画像設定</span></span>
           </button>
           <input type="file" id="edit-book-icon-input" accept="image/*" class="hidden">
-          <button id="edit-book-icon-clear-btn" class="hidden cover-clear">画像を消す</button>
         </div>
         <div class="cover-fields">
           <label>単語帳名<input id="edit-book-title" maxlength="50"></label>
@@ -232,13 +231,6 @@
         <label>選択した単語の移動先<select id="edit-move-select"></select></label>
         <div class="row"><button id="edit-move-btn" class="primary">選択を移動</button></div>
       </div>
-      <div id="edit-word-form" class="inline-editor hidden">
-        <input id="edit-word-en" placeholder="英語 (例: apple)" maxlength="100">
-        <input id="edit-word-ja" placeholder="日本語 (例: りんご)" maxlength="100">
-        <div class="row">
-          <button id="edit-word-save-btn" class="primary">追加</button>
-        </div>
-      </div>
       <button id="edit-word-new-btn">＋ 新規作成</button>
       <div class="row" id="edit-chapter-delete-row">
         <button id="edit-chapter-delete-btn" class="danger">このチャプターを削除</button>
@@ -264,6 +256,33 @@
     <p id="words-modal-sub" class="muted"></p>
     <div id="words-modal-list" class="list"></div>
     <button id="words-modal-close-btn" class="danger-text">閉じる</button>
+  </div>
+</div>
+
+<!-- 単語入力の小さなモーダル（新規追加・編集共用） -->
+<div id="word-form-modal" class="modal-overlay hidden">
+  <div class="modal-card small">
+    <h3 id="word-form-title">単語を追加</h3>
+    <label>英語<input id="edit-word-en" placeholder="英語 (例: apple)" maxlength="100"></label>
+    <label>日本語<input id="edit-word-ja" placeholder="日本語 (例: りんご)" maxlength="100"></label>
+    <div class="row">
+      <button id="edit-word-save-btn" class="primary">追加</button>
+    </div>
+    <button id="word-form-cancel-btn" class="danger-text">キャンセル</button>
+  </div>
+</div>
+
+<!-- 表紙画像メニュー（タップから変更・削除を選択） -->
+<div id="cover-menu-modal" class="modal-overlay hidden">
+  <div class="modal-card small">
+    <h3>表紙画像</h3>
+    <div class="row">
+      <button id="cover-change-btn" class="primary">画像を変更</button>
+    </div>
+    <div class="row">
+      <button id="cover-remove-btn" class="danger">画像を消す</button>
+    </div>
+    <button id="cover-menu-cancel-btn" class="danger-text">キャンセル</button>
   </div>
 </div>
 
