@@ -308,6 +308,22 @@ h4 { margin: 4px 0 6px; font-size: 14px; }
 }
 #words-modal-list .en { font-weight: bold; }
 #words-modal-list .ja { color: var(--muted); font-size: 13px; }
+#words-modal-search { margin: 8px 0; }
+#words-modal-list { margin-top: 8px; }
+.word-no {
+  flex-shrink: 0;
+  min-width: 30px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: #eef2ff;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: bold;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 .group-header { font-size: 13px; font-weight: bold; color: var(--muted); margin: 12px 0 2px; }
 .icon-btn { font-size: 18px; padding: 8px 0; width: 44px; min-height: 44px; line-height: 1; text-align: center; flex-shrink: 0; }
 #word-detail-title { font-size: 22px; font-weight: bold; line-height: 1.4; }

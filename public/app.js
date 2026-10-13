@@ -364,6 +364,19 @@ function chapterWords(b, chapterId) {
 function uncatWords(b) {
   return chapterWords(b, UNCAT);
 }
+// 単語番号: 上のチャプターの上の単語から順に 1..N を割り振る（未分類は末尾）。
+// チャプター・単語の並べ替え後は再計算するため常に最新順序に追従する。
+function buildWordNumberMap(b) {
+  const map = {};
+  let n = 1;
+  (b.chapters || []).forEach(c => {
+    b.words.filter(w => w.chapterId === c.id).forEach(w => { map[w.id] = n++; });
+  });
+  uncatWords(b).forEach(w => { if (!(w.id in map)) map[w.id] = n++; });
+  // 念のため漏れがあれば末尾に採番
+  b.words.forEach(w => { if (!(w.id in map)) map[w.id] = n++; });
+  return map;
+}
 function renderChapters() {
   const b = books.find(x => x.id === detailBookId);
   if (!b) return;
@@ -388,21 +401,45 @@ function renderChapters() {
     openWordsModal(btn.dataset.chwords || null);
   }));
 }
-// 単語一覧モーダル（表示専用）
+// 単語一覧モーダル（表示専用・検索付き）
+let wordsModalState = { bookId: null, chapterKey: null, query: '' };
 function openWordsModal(chapterId) {
   const b = books.find(x => x.id === detailBookId);
   if (!b) return;
   const cid = chapterId || null;
+  wordsModalState = { bookId: b.id, chapterKey: chapterId || null, query: '' };
   const isUncat = cid === UNCAT;
   const ch = (!isUncat && cid) ? chapterOf(b, cid) : null;
-  const words = cid ? chapterWords(b, cid) : [...b.words];
   document.getElementById('words-modal-title').textContent = isUncat ? '未分類' : (ch ? ch.title : `${b.title}（すべて）`);
-  document.getElementById('words-modal-sub').textContent = `${words.length}語`;
-  document.getElementById('words-modal-list').innerHTML = words.map(w => `
-    <div class="list-item"><div class="en">${escapeHtml(w.en)}</div><div class="ja">${escapeHtml(w.ja)}</div></div>`).join('')
-    || '<p class="muted">単語がありません。</p>';
+  const search = document.getElementById('words-modal-search');
+  if (search) search.value = '';
+  renderWordsModalList();
   document.getElementById('words-modal').classList.remove('hidden');
 }
+function renderWordsModalList() {
+  const b = books.find(x => x.id === wordsModalState.bookId);
+  if (!b) return;
+  const cid = wordsModalState.chapterKey || null;
+  const numMap = buildWordNumberMap(b);
+  // 「すべて」は単語番号順（チャプター順→チャプター内順）に並べる。
+  // チャプター並べ替え後も番号と表示順が一致するようにする。
+  const words = cid ? chapterWords(b, cid) : [...b.words].sort((a, c) => (numMap[a.id] ?? 0) - (numMap[c.id] ?? 0));
+  const q = (wordsModalState.query || '').trim().toLowerCase();
+  const filtered = q
+    ? words.filter(w => String(w.en).toLowerCase().includes(q) ||
+        String(w.ja).toLowerCase().includes(q) ||
+        String(numMap[w.id] ?? '').includes(q))
+    : words;
+  document.getElementById('words-modal-sub').textContent =
+    `${words.length}語` + (q ? `（検索: ${filtered.length}件）` : '');
+  document.getElementById('words-modal-list').innerHTML = filtered.map(w => `
+    <div class="list-item word-row"><span class="word-no">${numMap[w.id] ?? ''}</span><div class="w"><div class="en">${escapeHtml(w.en)}</div><div class="ja">${escapeHtml(w.ja)}</div></div></div>`).join('')
+    || (q ? '<p class="muted">検索に一致する単語がありません。</p>' : '<p class="muted">単語がありません。</p>');
+}
+document.getElementById('words-modal-search').addEventListener('input', e => {
+  wordsModalState.query = e.target.value;
+  renderWordsModalList();
+});
 document.getElementById('words-modal-close-btn').addEventListener('click', () => {
   document.getElementById('words-modal').classList.add('hidden');
 });
@@ -619,10 +656,12 @@ function renderEditWordList() {
   const b = books.find(x => x.id === detailBookId);
   if (!b) return;
   const words = chapterWords(b, editChapterId);
+  const numMap = buildWordNumberMap(b);
   const el = document.getElementById('edit-word-list');
   el.innerHTML = words.map(w => `
     <div class="list-item word-row sortable-item" data-sort-id="${w.id}">
       <span class="drag-handle" data-drag-handle aria-label="並べ替え">⠿</span>
+      <span class="word-no">${numMap[w.id] ?? ''}</span>
       <input type="checkbox" class="word-check" value="${w.id}" aria-label="選択">
       <div class="w"><div class="en">${escapeHtml(w.en)}</div><div class="ja">${escapeHtml(w.ja)}</div></div>
       <button class="icon-btn" data-ewedit="${w.id}" aria-label="編集">✏️</button>
