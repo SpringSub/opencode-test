@@ -191,14 +191,18 @@
   <div class="modal-card">
     <h3>編集</h3>
     <div id="edit-view-main">
-      <label>単語帳名<input id="edit-book-title" maxlength="50"></label>
-      <label>説明<input id="edit-book-desc" maxlength="100"></label>
-      <label>表紙画像</label>
-      <div class="cover-row">
-        <img id="edit-book-icon-preview" class="cover-preview hidden" alt="表紙プレビュー">
-        <div class="cover-actions">
-          <input type="file" id="edit-book-icon-input" accept="image/*">
-          <button id="edit-book-icon-clear-btn" class="hidden">画像を消す</button>
+      <div class="cover-layout">
+        <div class="cover-left">
+          <button id="edit-cover-tap" class="cover-tap" aria-label="表紙画像を変更">
+            <img id="edit-book-icon-preview" class="cover-preview hidden" alt="表紙プレビュー">
+            <span id="edit-cover-placeholder" class="cover-placeholder">📷<span>タップして画像設定</span></span>
+          </button>
+          <input type="file" id="edit-book-icon-input" accept="image/*" class="hidden">
+          <button id="edit-book-icon-clear-btn" class="hidden cover-clear">画像を消す</button>
+        </div>
+        <div class="cover-fields">
+          <label>単語帳名<input id="edit-book-title" maxlength="50"></label>
+          <label>説明<input id="edit-book-desc" maxlength="100"></label>
         </div>
       </div>
       <div class="row">

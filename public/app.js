@@ -467,19 +467,25 @@ let editIconData = null;
 function setEditIconPreview(dataUrl) {
   editIconData = dataUrl || null;
   const img = document.getElementById('edit-book-icon-preview');
+  const placeholder = document.getElementById('edit-cover-placeholder');
   const clearBtn = document.getElementById('edit-book-icon-clear-btn');
   const fileInput = document.getElementById('edit-book-icon-input');
   if (editIconData) {
     img.src = editIconData;
     img.classList.remove('hidden');
+    placeholder?.classList.add('hidden');
     clearBtn.classList.remove('hidden');
   } else {
     img.removeAttribute('src');
     img.classList.add('hidden');
+    placeholder?.classList.remove('hidden');
     clearBtn.classList.add('hidden');
     if (fileInput) fileInput.value = '';
   }
 }
+document.getElementById('edit-cover-tap').addEventListener('click', () => {
+  document.getElementById('edit-book-icon-input').click();
+});
 document.getElementById('edit-book-icon-input').addEventListener('change', e => {
   const file = e.target.files && e.target.files[0];
   if (!file) return;

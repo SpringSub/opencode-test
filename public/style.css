@@ -124,7 +124,18 @@ body.quiz-active .bottom-nav { display: none; }
 .word-row .w { flex: 1; }
 .word-row .en { font-weight: bold; }
 .word-row .ja { color: var(--muted); font-size: 13px; }
-.word-row .del { flex-shrink: 0; padding: 8px 10px; min-height: 36px; }
+.word-row .del { flex-shrink: 0; padding: 0; min-height: 44px; }
+#edit-word-list .icon-btn {
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
 .result-ok { color: var(--ok); font-weight: bold; }
 .result-ng { color: var(--ng); font-weight: bold; }
 textarea {
@@ -252,17 +263,36 @@ h4 { margin: 4px 0 6px; font-size: 14px; }
 .chap-actions button { padding: 8px 10px; min-height: 36px; font-size: 13px; }
 #edit-chapter-new-btn, #edit-word-new-btn { width: 100%; margin-top: 8px; border-style: dashed; }
 #edit-view-main h4 { margin-top: 34px; }
-.cover-row { display: flex; gap: 12px; align-items: flex-start; margin-top: 4px; }
-.cover-preview {
+.cover-layout { display: flex; gap: 12px; align-items: flex-start; margin-top: 4px; }
+.cover-left { flex-shrink: 0; width: 120px; display: flex; flex-direction: column; gap: 6px; }
+.cover-tap {
   width: 120px;
   aspect-ratio: 1 / 1.4142;
-  object-fit: cover;
+  padding: 0;
+  overflow: hidden;
   border-radius: 8px;
   border: 1px solid #cbd5e1;
-  flex-shrink: 0;
+  background: #eef2ff;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  cursor: pointer;
 }
-.cover-actions { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.cover-actions input { margin-top: 0; }
+.cover-tap img.cover-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border: none;
+  border-radius: 0;
+  display: block;
+}
+.cover-placeholder { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--muted); font-size: 24px; padding: 8px; }
+.cover-placeholder span:last-child { font-size: 11px; }
+.cover-clear { font-size: 12px; padding: 6px; min-height: 36px; width: 100%; }
+.cover-fields { flex: 1; min-width: 0; }
+.cover-fields label:first-child { margin-top: 0; }
 .header-actions { display: flex; gap: 4px; flex-shrink: 0; }
 .count-btn {
   background: #eef2ff;
@@ -278,12 +308,13 @@ h4 { margin: 4px 0 6px; font-size: 14px; }
 #words-modal-list .ja { color: var(--muted); font-size: 13px; }
 .group-header { font-size: 13px; font-weight: bold; color: var(--muted); margin: 12px 0 2px; }
 .icon-btn { font-size: 18px; padding: 8px 0; width: 44px; min-height: 44px; line-height: 1; text-align: center; flex-shrink: 0; }
+#word-detail-title { font-size: 22px; font-weight: bold; line-height: 1.4; }
 .word-check { width: 22px; height: 22px; flex-shrink: 0; margin: 0; padding: 0; accent-color: var(--primary); }
 /* 単語帳バナー（比率を変えず横幅フィット＋下部グラデーションでカット） */
 .book-banner {
   position: relative;
   margin: -16px -16px 12px;
-  height: 150px;
+  height: 180px;
   overflow: hidden;
   border-radius: 14px 14px 0 0;
 }
@@ -294,3 +325,17 @@ h4 { margin: 4px 0 6px; font-size: 14px; }
   height: 75%;
   background: linear-gradient(to bottom, transparent, var(--card));
 }
+/* 一覧の内部スクロール（件数が多くても周辺UIをスクロールさせない） */
+#chapter-list,
+#edit-chapter-list,
+#words-modal-list,
+#edit-word-list {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 2px 4px 2px 2px;
+}
+#chapter-list { max-height: 50vh; }
+#edit-chapter-list { max-height: 30vh; }
+#words-modal-list { max-height: 50vh; }
+#edit-word-list { max-height: 35vh; }
