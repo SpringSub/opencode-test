@@ -136,15 +136,53 @@ function renderHome() {
 });
   renderStats();
 }
-// 今日の学習・累計（記録ページに表示）
+// 今日の学習・累計・連続日数（記録ページに表示）
+function calcStreak() {
+  const days = new Set();
+  records.forEach(r => {
+    try { days.add(localDayKey(new Date(r.date))); } catch (e) {}
+  });
+  const now = new Date();
+  let d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (!days.has(localDayKey(d))) {
+    d = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1);
+  }
+  let streak = 0;
+  while (days.has(localDayKey(d))) {
+    streak++;
+    d = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1);
+  }
+  return streak;
+}
+function calcBestStreak() {
+  const daySet = new Set();
+  records.forEach(r => {
+    try { daySet.add(localDayKey(new Date(r.date))); } catch (e) {}
+  });
+  if (!daySet.size) return 0;
+  const days = [...daySet].sort();
+  let best = 1;
+  let cur = 1;
+  for (let i = 1; i < days.length; i++) {
+    const prev = new Date(days[i - 1] + 'T00:00:00');
+    const curD = new Date(days[i] + 'T00:00:00');
+    const diff = Math.round((curD - prev) / 86400000);
+    if (diff === 1) {
+      cur++;
+      if (cur > best) best = cur;
+    } else if (diff > 1) {
+      cur = 1;
+    }
+  }
+  return best;
+}
 function renderStats() {
   const today = records.filter(r => (r.date || '').slice(0, 10) === todayStr());
   const tQ = today.reduce((s, r) => s + r.total, 0);
   const tC = today.reduce((s, r) => s + r.correct, 0);
   document.getElementById('home-today').innerHTML = `
     <div class="stat"><b>${tQ}</b><span>今日の問題数</span></div>
-    <div class="stat"><b>${tQ ? Math.round(tC / tQ * 100) : 0}%</b><span>今日の正答率</span></div>
-    <div class="stat"><b>${books.reduce((s, b) => s + b.words.length, 0)}</b><span>登録単語数</span></div>`;
+    <div class="stat"><b>${tQ ? Math.round(tC / tQ * 100) : 0}%</b><span>今日の正答率</span></div>`;
 
   const aQ = records.reduce((s, r) => s + r.total, 0);
   const aC = records.reduce((s, r) => s + r.correct, 0);
@@ -152,6 +190,15 @@ function renderStats() {
     <div class="stat"><b>${records.length}</b><span>クイズ回数</span></div>
     <div class="stat"><b>${aQ}</b><span>累計問題数</span></div>
     <div class="stat"><b>${aQ ? Math.round(aC / aQ * 100) : 0}%</b><span>平均正答率</span></div>`;
+
+  const streakEl = document.getElementById('home-streak');
+  if (streakEl) {
+    const streak = calcStreak();
+    const best = calcBestStreak();
+    const isBest = streak > 0 && streak >= best;
+    streakEl.innerHTML = `
+      <div class="stat"><b>${streak}日</b><span>連続学習中</span><span class="streak-best">自己ベスト ${best}日${isBest ? ' 🔥' : ''}</span></div>`;
+  }
 }
 document.getElementById('quiz-setup-start').addEventListener('click', () => {
   showView('view-home');
@@ -1006,10 +1053,14 @@ function startQuiz(bookId, { chapterId = null, mode = 'en-ja', format = 'input',
 
 function currentQ() { return quiz.questions[quiz.index]; }
 
-// ---------- 4択の制限時間タイマー ----------
+// ---------- 4択の制限時間タイマー（rAFで滑らかに更新） ----------
 let quizTimerId = null;
 function stopQuizTimer() {
-  if (quizTimerId !== null) { clearInterval(quizTimerId); quizTimerId = null; }
+  if (quizTimerId !== null) {
+    try { cancelAnimationFrame(quizTimerId); } catch (e) {}
+    try { clearInterval(quizTimerId); } catch (e) {}
+    quizTimerId = null;
+  }
 }
 function startQuizTimer(sec) {
   stopQuizTimer();
@@ -1018,26 +1069,42 @@ function startQuizTimer(sec) {
   const bar = document.getElementById('quiz-timer-bar');
   if (!wrap || !text || !bar) return;
   wrap.classList.remove('hidden');
-  let left = sec;
-  const update = () => {
-    text.textContent = `⏱ 残り ${Math.max(0, Math.ceil(left))}秒`;
-    bar.style.width = `${Math.max(0, left / sec * 100)}%`;
+  const startedAt = performance.now();
+  const tick = (now) => {
+    const elapsed = ((now ?? performance.now()) - startedAt) / 1000;
+    const left = Math.max(0, sec - elapsed);
+    text.textContent = `⏱ 残り ${Math.ceil(left)}秒`;
+    bar.style.width = `${(left / sec) * 100}%`;
     wrap.classList.toggle('urgent', left <= 3);
+    if (left <= 0) { stopQuizTimer(); timeoutChoice(); return; }
+    quizTimerId = requestAnimationFrame(tick);
   };
-  update();
-  quizTimerId = setInterval(() => {
-    left -= 0.2;
-    if (left <= 0) { left = 0; update(); stopQuizTimer(); timeoutChoice(); return; }
-    update();
-  }, 200);
+  text.textContent = `⏱ 残り ${sec}秒`;
+  bar.style.width = '100%';
+  wrap.classList.toggle('urgent', sec <= 3);
+  quizTimerId = requestAnimationFrame(tick);
+}
+
+// ---------- 解答後1秒で自動進行 ----------
+let quizAutoNextId = null;
+function clearAutoNext() {
+  if (quizAutoNextId !== null) { clearTimeout(quizAutoNextId); quizAutoNextId = null; }
+}
+function scheduleAutoNext() {
+  clearAutoNext();
+  quizAutoNextId = setTimeout(() => {
+    quizAutoNextId = null;
+    const btn = document.getElementById('quiz-next-btn');
+    if (btn && !btn.classList.contains('hidden')) btn.click();
+  }, 1000);
 }
 
 function renderQuestion() {
   const q = currentQ();
   stopQuizTimer();
+  clearAutoNext();
   document.getElementById('quiz-timer')?.classList.add('hidden');
   document.getElementById('quiz-progress-text').textContent = `${quiz.index + 1} / ${quiz.questions.length}`;
-  document.getElementById('quiz-progress-bar').style.width = `${quiz.index / quiz.questions.length * 100}%`;
   document.getElementById('quiz-book-name').textContent =
     `${quiz.bookTitle}${quiz.chapterTitle ? ' / ' + quiz.chapterTitle : ''}・${quiz.format === 'choice' ? '4択' : '入力'}`;
   document.getElementById('quiz-word-no').textContent = q.no ? `No.${q.no}` : '';
@@ -1072,6 +1139,7 @@ function judge(q, userInput) {
   return normalizeEn(userInput) === normalizeEn(q.en);
 }
 function answerCurrent(gaveUp = false) {
+  if (!document.getElementById('quiz-next-btn').classList.contains('hidden')) return;
   const q = currentQ();
   const input = document.getElementById('quiz-answer-input').value;
   q.user = input;
@@ -1079,6 +1147,7 @@ function answerCurrent(gaveUp = false) {
   q.correct = !gaveUp && judge(q, input);
   showFeedback(q);
   document.getElementById('quiz-answer-btn').classList.add('hidden');
+  scheduleAutoNext();
 }
 function showFeedback(q, text = true) {
   document.getElementById('quiz-next-btn').textContent =
@@ -1094,6 +1163,7 @@ function showFeedback(q, text = true) {
     : `❌ 不正解… 正解は <span class="answer">${escapeHtml(correctAns)}</span>${q.user ? `<br>あなたの回答: ${escapeHtml(q.user)}` : ''}`;
 }
 function answerChoice(i) {
+  if (!document.getElementById('quiz-next-btn').classList.contains('hidden')) return;
   stopQuizTimer();
   const q = currentQ();
   q.user = q.choices[i] ?? '';
@@ -1105,8 +1175,10 @@ function answerChoice(i) {
     else if (bi === i) btn.classList.add('wrong');
   });
   showFeedback(q, false);
+  scheduleAutoNext();
 }
 function timeoutChoice() {
+  if (!document.getElementById('quiz-next-btn').classList.contains('hidden')) return;
   const q = currentQ();
   q.user = '（時間切れ）';
   q.correct = false;
@@ -1120,6 +1192,7 @@ function timeoutChoice() {
   fb.classList.add('ng');
   fb.textContent = '⏰ 時間切れ！';
   showFeedback(q, false);
+  scheduleAutoNext();
 }
 document.getElementById('quiz-answer-btn').addEventListener('click', () => answerCurrent(false));
 document.getElementById('quiz-giveup-btn').addEventListener('click', () => answerCurrent(true));
@@ -1135,6 +1208,7 @@ document.getElementById('quiz-answer-input').addEventListener('keydown', e => {
   }
 });
 document.getElementById('quiz-next-btn').addEventListener('click', () => {
+  clearAutoNext();
   quiz.index++;
   if (quiz.index >= quiz.questions.length) finishQuiz();
   else renderQuestion();
@@ -1142,6 +1216,7 @@ document.getElementById('quiz-next-btn').addEventListener('click', () => {
 document.getElementById('quiz-quit-btn').addEventListener('click', () => {
   if (!confirm('クイズを中断しますか？記録は保存されません。')) return;
   stopQuizTimer();
+  clearAutoNext();
   quiz = null;
   document.getElementById('quiz-play').classList.add('hidden');
   document.getElementById('quiz-setup').classList.remove('hidden');
@@ -1149,9 +1224,29 @@ document.getElementById('quiz-quit-btn').addEventListener('click', () => {
   showView('view-home');
 });
 
+// ---------- 結果ドーナツの1秒アニメーション（0%→正答率） ----------
+let donutAnimId = null;
+function animateDonut(fg, accuracy) {
+  if (donutAnimId !== null) { try { cancelAnimationFrame(donutAnimId); } catch (e) {} donutAnimId = null; }
+  const r = 52;
+  const c = 2 * Math.PI * r;
+  fg.style.strokeDasharray = `0 ${c}`;
+  const start = performance.now();
+  const DUR = 1000;
+  const step = (now) => {
+    const t = Math.min(1, (((now ?? performance.now())) - start) / DUR);
+    const eased = 1 - Math.pow(1 - t, 3);
+    const pct = accuracy * eased;
+    fg.style.strokeDasharray = `${(c * pct) / 100} ${c}`;
+    if (t < 1) donutAnimId = requestAnimationFrame(step);
+    else donutAnimId = null;
+  };
+  donutAnimId = requestAnimationFrame(step);
+}
+
 function finishQuiz() {
   stopQuizTimer();
-  const correct = quiz.questions.filter(q => q.correct).length;
+  clearAutoNext();  const correct = quiz.questions.filter(q => q.correct).length;
   const total = quiz.questions.length;
   const rec = {
     id: uid(),
@@ -1172,17 +1267,18 @@ function finishQuiz() {
   document.body.classList.remove('quiz-active');
   const res = document.getElementById('quiz-result');
   res.classList.remove('hidden');
-  document.getElementById('quiz-result-summary').innerHTML = `
-    <div class="stat"><b>${correct}/${total}</b><span>正解数</span></div>
-    <div class="stat"><b>${rec.accuracy}%</b><span>正答率</span></div>
-    <div class="stat"><b>${escapeHtml(quiz.chapterTitle || quiz.bookTitle)}</b><span>範囲</span></div>`;
+  document.getElementById('quiz-result-chapter').innerHTML =
+    `${escapeHtml(quiz.bookTitle)}<br>${escapeHtml(quiz.chapterTitle || 'すべて')}`;
+  document.getElementById('quiz-result-score').textContent = `${correct}/${total}`;
+  document.getElementById('quiz-result-accuracy').textContent = `正答率 ${rec.accuracy}%`;
+  const fg = document.getElementById('quiz-result-donut-fg');
+  if (fg) animateDonut(fg, rec.accuracy);
   document.getElementById('quiz-result-list').innerHTML = quiz.questions.map(q => `
     <div class="list-item">
       <span class="${q.correct ? 'result-ok' : 'result-ng'}">${q.correct ? '⭕' : '❌'}</span>
       <b>${escapeHtml(q.en)}</b> — ${escapeHtml(q.ja)}
       ${q.correct ? '' : `<br><span class="muted">回答: ${escapeHtml(q.user || '(無回答/ギブアップ)')}</span>`}
     </div>`).join('');
-  document.getElementById('quiz-progress-bar').style.width = '100%';
 }
 document.getElementById('quiz-retry-btn').addEventListener('click', () => {
   if (quiz) startQuiz(quiz.bookId, { chapterId: quiz.chapterId, mode: quiz.mode, format: quiz.format, count: quiz.questions.length, timeLimit: quiz.timeLimit, shuffle: true });
@@ -1289,19 +1385,6 @@ window.addEventListener('resize', () => {
   }, 150);
 });
 function renderRecords() {
-  const sum = document.getElementById('records-summary');
-  const total = records.reduce((s, r) => s + r.total, 0);
-  const correct = records.reduce((s, r) => s + r.correct, 0);
-  sum.innerHTML = `<b>${records.length}回</b> のクイズ ・ <b>${total}問</b> 中 <b>${correct}問</b> 正解（平均 ${total ? Math.round(correct / total * 100) : 0}%）`;
-  const list = document.getElementById('records-list');
-  const modeLabel = m => m === 'en-ja' ? '英→日' : m === 'ja-en' ? '日→英' : 'ランダム';
-  const fmtLabel = f => f === 'choice' ? '4択' : f === 'input' ? '入力' : '';
-  list.innerHTML = records.map(r => `
-    <div class="list-item">
-      <div class="title">${escapeHtml(r.wordbookTitle)}${r.chapterTitle ? ' / ' + escapeHtml(r.chapterTitle) : ''} <span class="muted">${modeLabel(r.mode)} ${fmtLabel(r.format)}</span></div>
-      <div>${r.correct}/${r.total}（${r.accuracy}%）</div>
-      <div class="muted">${new Date(r.date).toLocaleString('ja-JP')}</div>
-    </div>`).join('') || '<p class="muted">まだ記録がありません。</p>';
   renderStats();
   drawWeekChart();
 }

@@ -95,9 +95,25 @@ button.danger-text { background: none; border: none; color: var(--muted); width:
 .giveup-wrap { display: flex; justify-content: flex-end; margin-top: 6px; }
 .giveup-btn { background: none; border: none; color: var(--muted); font-size: 12px; min-height: 32px; padding: 6px 8px; }
 #quiz-hint { text-align: center; }
-.quiz-progress { font-size: 13px; }
+.quiz-progress { text-align: center; margin-top: 4px; }
+#quiz-progress-text { display: block; text-align: center; font-size: 24px; font-weight: bold; }
 .bar { height: 8px; background: #e2e8f0; border-radius: 99px; overflow: hidden; margin-top: 4px; }
 .bar div { height: 100%; background: var(--primary); width: 0%; transition: width .2s; }
+#quiz-timer-bar { transition: none; will-change: width; }
+/* 結果画面: チャプター＋ドーナツ＋単語一覧 */
+.result-chapter { text-align: left; font-size: 14px; font-weight: bold; margin: 0 0 8px; line-height: 1.6; }
+.result-donut-wrap { position: relative; width: 200px; height: 200px; margin: 24px auto 28px; }
+.result-donut { width: 100%; height: 100%; display: block; }
+.result-donut .donut-bg { fill: none; stroke: #e2e8f0; stroke-width: 14; }
+.result-donut .donut-fg { fill: none; stroke: var(--primary); stroke-width: 14; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 60px 60px; will-change: stroke-dasharray; }
+.result-donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+#quiz-result-score { font-size: 34px; font-weight: bold; line-height: 1.2; }
+#quiz-result-accuracy { font-size: 14px; margin-top: 4px; }
+/* 連続学習日数は数字を大きく・枠を少し縦長に */
+#home-streak .stat { padding: 18px 10px; }
+#home-streak .stat b { font-size: 32px; }
+.streak-best { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
+.result-list-scroll { max-height: 560px; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 6px; }
 .feedback { margin-top: 12px; padding: 12px; border-radius: 10px; font-size: 15px; }
 .feedback.ok { background: #dcfce7; color: #166534; }
 .feedback.ng { background: #fee2e2; color: #991b1b; }
@@ -429,3 +445,5 @@ h4 { margin: 4px 0 6px; font-size: 14px; }
 }
 .step-btn:disabled { opacity: .4; cursor: default; }
 .step-value { min-width: 88px; text-align: center; font-size: 18px; font-weight: bold; }
+/* 画面下部のバージョン表記 */
+.app-footer { max-width: 600px; margin: 8px auto 0; padding: 12px 12px 8px; text-align: center; color: var(--muted); font-size: 12px; }

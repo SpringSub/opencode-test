@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#4f46e5">
+<meta name="robots" content="noindex, nofollow">
 <title>vocaby — 英単語アプリ</title>
 <link rel="stylesheet" href="style.css">
 <link rel="manifest" href="manifest.json">
@@ -80,7 +81,6 @@
     <div id="quiz-play" class="card hidden">
       <div class="quiz-progress">
         <span id="quiz-progress-text">1 / 10</span>
-        <div class="bar"><div id="quiz-progress-bar"></div></div>
       </div>
       <p id="quiz-book-name" class="muted"></p>
       <div id="quiz-timer" class="quiz-timer hidden"><span id="quiz-timer-text"></span><div class="bar timer-bar"><div id="quiz-timer-bar"></div></div></div>
@@ -103,9 +103,18 @@
     </div>
 
     <div id="quiz-result" class="card hidden">
-      <h2>結果</h2>
-      <div id="quiz-result-summary" class="stats-row"></div>
-      <div id="quiz-result-list" class="list"></div>
+      <p id="quiz-result-chapter" class="result-chapter"></p>
+      <div class="result-donut-wrap">
+        <svg class="result-donut" viewBox="0 0 120 120" aria-hidden="true">
+          <circle cx="60" cy="60" r="52" class="donut-bg"></circle>
+          <circle cx="60" cy="60" r="52" id="quiz-result-donut-fg" class="donut-fg"></circle>
+        </svg>
+        <div class="result-donut-center">
+          <div id="quiz-result-score"></div>
+          <div id="quiz-result-accuracy" class="muted"></div>
+        </div>
+      </div>
+      <div id="quiz-result-list" class="list scroll-frame result-list-scroll"></div>
       <div class="row">
         <button id="quiz-retry-btn" class="primary">もう一度</button>
         <button id="quiz-to-home-btn">ホームへ</button>
@@ -120,22 +129,26 @@
       <button id="records-clear-btn" class="danger">全削除</button>
     </div>
     <div class="card highlight">
-      <h2>今日の学習</h2>
-      <div id="home-today" class="stats-row"></div>
+      <h2>連続学習日数</h2>
+      <div id="home-streak" class="stats-row"></div>
     </div>
     <div class="card">
-      <h2>累計</h2>
-      <div id="home-total" class="stats-row"></div>
+      <h2>今日の学習</h2>
+      <div id="home-today" class="stats-row"></div>
     </div>
     <div class="card">
       <h2>過去1週間（勉強量: 問題数）</h2>
       <div class="chart-wrap"><canvas id="week-chart" height="200"></canvas></div>
       <p id="week-chart-note" class="muted"></p>
     </div>
-    <div id="records-summary" class="card"></div>
-    <div id="records-list" class="list"></div>
+    <div class="card">
+      <h2>累計</h2>
+      <div id="home-total" class="stats-row"></div>
+    </div>
   </section>
 </main>
+
+<footer class="app-footer">Vocaby v0.0</footer>
 
 <nav class="bottom-nav">
   <button data-view="view-home" class="active">🏠<span>ホーム</span></button>
