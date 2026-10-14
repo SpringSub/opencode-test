@@ -64,7 +64,8 @@
       </div>
       <p id="word-detail-desc" class="muted"></p>
       <h4>チャプター</h4>
-      <div id="chapter-list" class="list"></div>
+      <div id="chapter-list-pinned" class="list"></div>
+      <div id="chapter-list-scroll" class="list scroll-frame"></div>
     </div>
   </section>
 
@@ -82,13 +83,17 @@
         <div class="bar"><div id="quiz-progress-bar"></div></div>
       </div>
       <p id="quiz-book-name" class="muted"></p>
+      <div id="quiz-timer" class="quiz-timer hidden"><span id="quiz-timer-text"></span><div class="bar timer-bar"><div id="quiz-timer-bar"></div></div></div>
+      <p id="quiz-word-no" class="quiz-word-no"></p>
       <h2 id="quiz-question" class="quiz-q"></h2>
       <p id="quiz-hint" class="muted"></p>
       <div id="quiz-input-area">
         <input id="quiz-answer-input" placeholder="答えを入力" autocomplete="off" enterkeyhint="go">
         <div class="row">
           <button id="quiz-answer-btn" class="primary big">回答する</button>
-          <button id="quiz-giveup-btn">答えを見る</button>
+        </div>
+        <div class="giveup-wrap">
+          <button id="quiz-giveup-btn" class="giveup-btn">答えを見る</button>
         </div>
       </div>
       <div id="quiz-choice-area" class="choice-grid hidden"></div>
@@ -143,27 +148,37 @@
   <div class="modal-card">
     <h3 id="quiz-modal-title"></h3>
     <p id="quiz-modal-sub" class="muted"></p>
-    <label>出題方向
-      <select id="qs-mode-select">
-        <option value="en-ja">英語 → 日本語</option>
-        <option value="ja-en">日本語 → 英語</option>
-        <option value="random">ランダム</option>
-      </select>
-    </label>
-    <label>出題形式
-      <select id="qs-format-select">
-        <option value="input">一問一答（入力）</option>
-        <option value="choice">4択</option>
-      </select>
-    </label>
-    <label>問題数
-      <select id="qs-count-select">
-        <option value="5">5問</option>
-        <option value="10" selected>10問</option>
-        <option value="20">20問</option>
-        <option value="0">全問</option>
-      </select>
-    </label>
+    <div class="qs-group">
+      <p class="qs-label">出題方法</p>
+      <div class="seg-group" id="qs-mode-group">
+        <button type="button" data-mode="en-ja">英語 → 日本語</button>
+        <button type="button" data-mode="ja-en">日本語 → 英語</button>
+        <button type="button" data-mode="random">ランダム</button>
+      </div>
+    </div>
+    <div class="qs-group">
+      <p class="qs-label">出題形式</p>
+      <div class="seg-group" id="qs-format-group">
+        <button type="button" data-format="input">一問一答</button>
+        <button type="button" data-format="choice">4択</button>
+      </div>
+    </div>
+    <div class="qs-group">
+      <p class="qs-label">問題数</p>
+      <div class="stepper">
+        <button type="button" id="qs-count-minus" class="step-btn" aria-label="減らす">−</button>
+        <span id="qs-count-value" class="step-value">10問</span>
+        <button type="button" id="qs-count-plus" class="step-btn" aria-label="増やす">＋</button>
+      </div>
+    </div>
+    <div class="qs-group" id="qs-time-group">
+      <p class="qs-label">制限時間（4択のみ）</p>
+      <div class="stepper">
+        <button type="button" id="qs-time-minus" class="step-btn" aria-label="減らす">−</button>
+        <span id="qs-time-value" class="step-value">5秒</span>
+        <button type="button" id="qs-time-plus" class="step-btn" aria-label="増やす">＋</button>
+      </div>
+    </div>
     <label class="check"><input type="checkbox" id="qs-shuffle-check" checked> 出題順をシャッフル</label>
     <div class="row">
       <button id="qs-start-btn" class="primary">開始</button>

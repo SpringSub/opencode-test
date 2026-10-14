@@ -380,26 +380,30 @@ function buildWordNumberMap(b) {
 function renderChapters() {
   const b = books.find(x => x.id === detailBookId);
   if (!b) return;
-  const el = document.getElementById('chapter-list');
+  const pinned = document.getElementById('chapter-list-pinned');
+  const scroll = document.getElementById('chapter-list-scroll');
+  if (!pinned || !scroll) return;
   const rowHtml = (key, title, words) => `
     <div class="list-item word-row chapter-row" data-chquiz="${key}">
       <div class="w"><div class="title">${title}</div></div>
       <div class="chap-actions"><button class="count-btn" data-chwords="${key}">${words.length}語</button></div>
     </div>`;
-  el.innerHTML = rowHtml('', '📖 すべて', b.words) +
-    (b.chapters || []).map(c => rowHtml(c.id, escapeHtml(c.title), b.words.filter(w => w.chapterId === c.id))).join('') +
+  pinned.innerHTML = rowHtml('', '📖 すべて', b.words);
+  scroll.innerHTML = (b.chapters || []).map(c => rowHtml(c.id, escapeHtml(c.title), b.words.filter(w => w.chapterId === c.id))).join('') +
     rowHtml(UNCAT, '未分類', uncatWords(b));
   // 行タップ → 出題設定モーダル
-  el.querySelectorAll('[data-chquiz]').forEach(node =>
-    node.addEventListener('click', e => {
+  [pinned, scroll].forEach(root => {
+    root.querySelectorAll('[data-chquiz]').forEach(node =>
+      node.addEventListener('click', e => {
+        e.stopPropagation();
+        openQuizModal(detailBookId, node.dataset.chquiz || null);
+      }));
+    // 語数ボタンタップ → 単語一覧モーダル
+    root.querySelectorAll('[data-chwords]').forEach(btn => btn.addEventListener('click', e => {
       e.stopPropagation();
-      openQuizModal(detailBookId, node.dataset.chquiz || null);
+      openWordsModal(btn.dataset.chwords || null);
     }));
-  // 語数ボタンタップ → 単語一覧モーダル
-  el.querySelectorAll('[data-chwords]').forEach(btn => btn.addEventListener('click', e => {
-    e.stopPropagation();
-    openWordsModal(btn.dataset.chwords || null);
-  }));
+  });
 }
 // 単語一覧モーダル（表示専用・検索付き）
 let wordsModalState = { bookId: null, chapterKey: null, query: '' };
@@ -602,6 +606,7 @@ function openEditChapter(cid) {
   const c = isUncat ? null : chapterOf(b, cid);
   if (!isUncat && !c) return;
   editChapterId = cid;
+  editSelected.clear();
   resetEditWordForm();
   document.getElementById('edit-chapter-name-input').value = isUncat ? '未分類' : c.title;
   document.getElementById('edit-chapter-name-input').disabled = isUncat;
@@ -652,21 +657,34 @@ document.getElementById('word-form-cancel-btn').addEventListener('click', () => 
 document.getElementById('word-form-modal').addEventListener('click', e => {
   if (e.target.id === 'word-form-modal') resetEditWordForm();
 });
+let editSelected = new Set(); // 編集モーダルで選択中の単語ID（番号タップで切替）
 function renderEditWordList() {
   const b = books.find(x => x.id === detailBookId);
   if (!b) return;
   const words = chapterWords(b, editChapterId);
   const numMap = buildWordNumberMap(b);
+  // 削除済みIDの選択を掃除
+  [...editSelected].forEach(id => {
+    if (!b.words.some(w => w.id === id)) editSelected.delete(id);
+  });
   const el = document.getElementById('edit-word-list');
   el.innerHTML = words.map(w => `
     <div class="list-item word-row sortable-item" data-sort-id="${w.id}">
       <span class="drag-handle" data-drag-handle aria-label="並べ替え">⠿</span>
-      <span class="word-no">${numMap[w.id] ?? ''}</span>
-      <input type="checkbox" class="word-check" value="${w.id}" aria-label="選択">
+      <button type="button" class="word-no word-no-btn${editSelected.has(w.id) ? ' selected' : ''}" data-ewcheck="${w.id}" aria-pressed="${editSelected.has(w.id)}" aria-label="選択">${numMap[w.id] ?? ''}</button>
       <div class="w"><div class="en">${escapeHtml(w.en)}</div><div class="ja">${escapeHtml(w.ja)}</div></div>
       <button class="icon-btn" data-ewedit="${w.id}" aria-label="編集">✏️</button>
       <button class="icon-btn del" data-ewdel="${w.id}" aria-label="削除">🗑️</button>
     </div>`).join('') || '<p class="muted">単語がありません。「＋ 新規作成」から追加してください。</p>';
+  el.querySelectorAll('[data-ewcheck]').forEach(node => node.addEventListener('click', e => {
+    e.stopPropagation();
+    const id = node.dataset.ewcheck;
+    if (editSelected.has(id)) editSelected.delete(id);
+    else editSelected.add(id);
+    node.classList.toggle('selected', editSelected.has(id));
+    node.setAttribute('aria-pressed', editSelected.has(id));
+    refreshMoveBox();
+  }));
   el.querySelectorAll('[data-ewdel]').forEach(node => node.addEventListener('click', () => {
     if (!confirm('削除しますか？')) return;
     b.words = b.words.filter(w => w.id !== node.dataset.ewdel);
@@ -687,12 +705,8 @@ function renderEditWordList() {
   refreshMoveBox();
 }
 function refreshMoveBox() {
-  const n = document.querySelectorAll('#edit-word-list .word-check:checked').length;
-  document.getElementById('edit-move-box').classList.toggle('hidden', n === 0);
+  document.getElementById('edit-move-box').classList.toggle('hidden', editSelected.size === 0);
 }
-document.getElementById('edit-word-list').addEventListener('change', e => {
-  if (e.target.classList && e.target.classList.contains('word-check')) refreshMoveBox();
-});
 document.getElementById('edit-word-save-btn').addEventListener('click', () => {
   const b = books.find(x => x.id === detailBookId);
   if (!b) return;
@@ -732,11 +746,12 @@ function refreshMoveSelect() {
 document.getElementById('edit-move-btn').addEventListener('click', () => {
   const b = books.find(x => x.id === detailBookId);
   if (!b) return;
-  const checked = [...document.querySelectorAll('#edit-word-list .word-check:checked')].map(cb => cb.value);
-  if (!checked.length) { alert('移動する単語にチェックを入れてください'); return; }
+  const checked = [...editSelected];
+  if (!checked.length) { alert('移動する単語を番号タップで選択してください'); return; }
   const dest = document.getElementById('edit-move-select').value;
   const destId = dest === UNCAT ? null : dest;
   b.words.forEach(w => { if (checked.includes(w.id)) w.chapterId = destId; });
+  editSelected.clear();
   b.updatedAt = new Date().toISOString();
   Store.saveBooks(books);
   resetEditWordForm();
@@ -840,6 +855,58 @@ function parseBulkText(text) {
 
 // ---------- 出題設定モーダル（チャプター選択後に中央表示） ----------
 let quizTarget = { bookId: null, chapterId: null };
+let qsMode = 'en-ja';
+let qsFormat = 'input';
+let qsCount = 10; // 10〜1000（10刻み）。収録語数を上回った分は全語出題
+const QS_MIN = 10, QS_MAX = 1000, QS_STEP = 10;
+let qsTimeLimit = 5; // 4択の制限時間（秒）。1〜15
+const QT_MIN = 1, QT_MAX = 15;
+function renderQsMode() {
+  document.querySelectorAll('#qs-mode-group button').forEach(b =>
+    b.classList.toggle('selected', b.dataset.mode === qsMode));
+}
+function renderQsFormat() {
+  document.querySelectorAll('#qs-format-group button').forEach(b =>
+    b.classList.toggle('selected', b.dataset.format === qsFormat));
+  renderQsTimeState();
+}
+function renderQsTime() {
+  const el = document.getElementById('qs-time-value');
+  if (el) el.textContent = `${qsTimeLimit}秒`;
+}
+// 一問一答の選択中は制限時間設定を無効化（灰色・無反応）
+function renderQsTimeState() {
+  const dis = qsFormat !== 'choice';
+  document.getElementById('qs-time-group')?.classList.toggle('disabled', dis);
+  const minus = document.getElementById('qs-time-minus');
+  const plus = document.getElementById('qs-time-plus');
+  if (minus) minus.disabled = dis;
+  if (plus) plus.disabled = dis;
+}
+function renderQsCount() {
+  const el = document.getElementById('qs-count-value');
+  if (el) el.textContent = `${qsCount}問`;
+}
+document.querySelectorAll('#qs-mode-group button').forEach(b =>
+  b.addEventListener('click', () => { qsMode = b.dataset.mode; renderQsMode(); }));
+document.querySelectorAll('#qs-format-group button').forEach(b =>
+  b.addEventListener('click', () => { qsFormat = b.dataset.format; renderQsFormat(); }));
+document.getElementById('qs-count-minus').addEventListener('click', () => {
+  qsCount = Math.max(QS_MIN, qsCount - QS_STEP);
+  renderQsCount();
+});
+document.getElementById('qs-count-plus').addEventListener('click', () => {
+  qsCount = Math.min(QS_MAX, qsCount + QS_STEP);
+  renderQsCount();
+});
+document.getElementById('qs-time-minus').addEventListener('click', () => {
+  qsTimeLimit = Math.max(QT_MIN, qsTimeLimit - 1);
+  renderQsTime();
+});
+document.getElementById('qs-time-plus').addEventListener('click', () => {
+  qsTimeLimit = Math.min(QT_MAX, qsTimeLimit + 1);
+  renderQsTime();
+});
 function openQuizModal(bookId, chapterId) {
   const b = books.find(x => x.id === bookId);
   if (!b) return;
@@ -855,6 +922,12 @@ function openQuizModal(bookId, chapterId) {
   quizTarget = { bookId, chapterId: cid };
   document.getElementById('quiz-modal-title').textContent = title || `${b.title}（すべて）`;
   document.getElementById('quiz-modal-sub').textContent = `${b.title}・${n}語`;
+  qsCount = Math.min(QS_MAX, Math.max(QS_MIN, Math.round(qsCount / QS_STEP) * QS_STEP || QS_MIN));
+  qsTimeLimit = Math.min(QT_MAX, Math.max(QT_MIN, qsTimeLimit));
+  renderQsMode();
+  renderQsFormat();
+  renderQsCount();
+  renderQsTime();
   document.getElementById('quiz-modal').classList.remove('hidden');
 }
 function closeQuizModal() {
@@ -865,12 +938,13 @@ document.getElementById('quiz-modal').addEventListener('click', e => {
   if (e.target.id === 'quiz-modal') closeQuizModal();
 });
 document.getElementById('qs-start-btn').addEventListener('click', () => {
-  const mode = document.getElementById('qs-mode-select').value;
-  const format = document.getElementById('qs-format-select').value;
-  const count = parseInt(document.getElementById('qs-count-select').value, 10);
+  const mode = qsMode;
+  const format = qsFormat;
+  const count = qsCount;
+  const timeLimit = qsTimeLimit;
   const shuffle = document.getElementById('qs-shuffle-check').checked;
   closeQuizModal();
-  startQuiz(quizTarget.bookId, { chapterId: quizTarget.chapterId, mode, format, count, shuffle });
+  startQuiz(quizTarget.bookId, { chapterId: quizTarget.chapterId, mode, format, count, timeLimit, shuffle });
 });
 
 // ---------- クイズ（一問一答 / 4択） ----------
@@ -886,7 +960,7 @@ function shuffleArr(a) {
 function normalizeEn(s) { return (s || '').trim().toLowerCase(); }
 function normalizeJa(s) { return (s || '').trim().replace(/\s+/g, ''); }
 
-function startQuiz(bookId, { chapterId = null, mode = 'en-ja', format = 'input', count = 10, shuffle = true } = {}) {
+function startQuiz(bookId, { chapterId = null, mode = 'en-ja', format = 'input', count = 10, timeLimit = 5, shuffle = true } = {}) {
   const b = books.find(x => x.id === bookId);
   if (!b) { alert('単語帳を選択してください'); return; }
   const isUncat = chapterId === UNCAT;
@@ -901,12 +975,13 @@ function startQuiz(bookId, { chapterId = null, mode = 'en-ja', format = 'input',
   const pool = words.length >= 4 ? words
     : b.words.length >= 4 ? b.words
     : [...b.words, ...books.flatMap(x => x.id === b.id ? [] : x.words)];
+  const numMap = buildWordNumberMap(b);
   quiz = {
-    bookId: b.id, bookTitle: b.title, chapterId, chapterTitle, mode, format,
+    bookId: b.id, bookTitle: b.title, chapterId, chapterTitle, mode, format, timeLimit,
     questions: words.map(w => {
       let dir = mode;
       if (mode === 'random') dir = Math.random() < 0.5 ? 'en-ja' : 'ja-en';
-      const q = { wordId: w.id, dir, en: w.en, ja: w.ja, user: '', correct: false, gaveUp: false, choices: [], answerIndex: 0 };
+      const q = { wordId: w.id, no: numMap[w.id] ?? 0, dir, en: w.en, ja: w.ja, user: '', correct: false, gaveUp: false, choices: [], answerIndex: 0 };
       if (format === 'choice') {
         const correctText = dir === 'en-ja' ? w.ja : w.en;
         const distract = shuffleArr(pool.filter(x => (dir === 'en-ja' ? x.ja : x.en) !== correctText))
@@ -931,12 +1006,41 @@ function startQuiz(bookId, { chapterId = null, mode = 'en-ja', format = 'input',
 
 function currentQ() { return quiz.questions[quiz.index]; }
 
+// ---------- 4択の制限時間タイマー ----------
+let quizTimerId = null;
+function stopQuizTimer() {
+  if (quizTimerId !== null) { clearInterval(quizTimerId); quizTimerId = null; }
+}
+function startQuizTimer(sec) {
+  stopQuizTimer();
+  const wrap = document.getElementById('quiz-timer');
+  const text = document.getElementById('quiz-timer-text');
+  const bar = document.getElementById('quiz-timer-bar');
+  if (!wrap || !text || !bar) return;
+  wrap.classList.remove('hidden');
+  let left = sec;
+  const update = () => {
+    text.textContent = `⏱ 残り ${Math.max(0, Math.ceil(left))}秒`;
+    bar.style.width = `${Math.max(0, left / sec * 100)}%`;
+    wrap.classList.toggle('urgent', left <= 3);
+  };
+  update();
+  quizTimerId = setInterval(() => {
+    left -= 0.2;
+    if (left <= 0) { left = 0; update(); stopQuizTimer(); timeoutChoice(); return; }
+    update();
+  }, 200);
+}
+
 function renderQuestion() {
   const q = currentQ();
+  stopQuizTimer();
+  document.getElementById('quiz-timer')?.classList.add('hidden');
   document.getElementById('quiz-progress-text').textContent = `${quiz.index + 1} / ${quiz.questions.length}`;
   document.getElementById('quiz-progress-bar').style.width = `${quiz.index / quiz.questions.length * 100}%`;
   document.getElementById('quiz-book-name').textContent =
     `${quiz.bookTitle}${quiz.chapterTitle ? ' / ' + quiz.chapterTitle : ''}・${quiz.format === 'choice' ? '4択' : '入力'}`;
+  document.getElementById('quiz-word-no').textContent = q.no ? `No.${q.no}` : '';
   const isEnJa = q.dir === 'en-ja';
   document.getElementById('quiz-question').textContent = isEnJa ? q.en : q.ja;
   document.getElementById('quiz-hint').textContent = isEnJa ? '日本語で答えてください' : '英語で答えてください';
@@ -955,6 +1059,7 @@ function renderQuestion() {
       `<button class="choice-btn" data-i="${i}"><span class="num">${i + 1}</span><span>${escapeHtml(c)}</span></button>`).join('');
     choiceArea.querySelectorAll('.choice-btn').forEach(btn =>
       btn.addEventListener('click', () => answerChoice(parseInt(btn.dataset.i, 10))));
+    startQuizTimer(quiz.timeLimit > 0 ? quiz.timeLimit : 5);
   } else {
     document.getElementById('quiz-answer-input').placeholder = isEnJa ? '日本語で入力' : '英語で入力';
     document.getElementById('quiz-answer-input').value = '';
@@ -989,6 +1094,7 @@ function showFeedback(q, text = true) {
     : `❌ 不正解… 正解は <span class="answer">${escapeHtml(correctAns)}</span>${q.user ? `<br>あなたの回答: ${escapeHtml(q.user)}` : ''}`;
 }
 function answerChoice(i) {
+  stopQuizTimer();
   const q = currentQ();
   q.user = q.choices[i] ?? '';
   q.correct = i === q.answerIndex;
@@ -1000,8 +1106,28 @@ function answerChoice(i) {
   });
   showFeedback(q, false);
 }
+function timeoutChoice() {
+  const q = currentQ();
+  q.user = '（時間切れ）';
+  q.correct = false;
+  q.gaveUp = false;
+  document.querySelectorAll('#quiz-choice-area .choice-btn').forEach((btn, bi) => {
+    btn.disabled = true;
+    if (bi === q.answerIndex) btn.classList.add('correct');
+  });
+  const fb = document.getElementById('quiz-feedback');
+  fb.classList.remove('hidden', 'ok');
+  fb.classList.add('ng');
+  fb.textContent = '⏰ 時間切れ！';
+  showFeedback(q, false);
+}
 document.getElementById('quiz-answer-btn').addEventListener('click', () => answerCurrent(false));
 document.getElementById('quiz-giveup-btn').addEventListener('click', () => answerCurrent(true));
+document.getElementById('quiz-answer-input').addEventListener('input', e => {
+  if (!quiz || quiz.format !== 'input') return;
+  if (document.getElementById('quiz-answer-btn').classList.contains('hidden')) return; // 回答済み
+  if (judge(currentQ(), e.target.value)) answerCurrent(false);
+});
 document.getElementById('quiz-answer-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') {
     if (!document.getElementById('quiz-answer-btn').classList.contains('hidden')) answerCurrent(false);
@@ -1015,6 +1141,7 @@ document.getElementById('quiz-next-btn').addEventListener('click', () => {
 });
 document.getElementById('quiz-quit-btn').addEventListener('click', () => {
   if (!confirm('クイズを中断しますか？記録は保存されません。')) return;
+  stopQuizTimer();
   quiz = null;
   document.getElementById('quiz-play').classList.add('hidden');
   document.getElementById('quiz-setup').classList.remove('hidden');
@@ -1023,6 +1150,7 @@ document.getElementById('quiz-quit-btn').addEventListener('click', () => {
 });
 
 function finishQuiz() {
+  stopQuizTimer();
   const correct = quiz.questions.filter(q => q.correct).length;
   const total = quiz.questions.length;
   const rec = {
@@ -1057,7 +1185,7 @@ function finishQuiz() {
   document.getElementById('quiz-progress-bar').style.width = '100%';
 }
 document.getElementById('quiz-retry-btn').addEventListener('click', () => {
-  if (quiz) startQuiz(quiz.bookId, { chapterId: quiz.chapterId, mode: quiz.mode, format: quiz.format, count: quiz.questions.length, shuffle: true });
+  if (quiz) startQuiz(quiz.bookId, { chapterId: quiz.chapterId, mode: quiz.mode, format: quiz.format, count: quiz.questions.length, timeLimit: quiz.timeLimit, shuffle: true });
 });
 document.getElementById('quiz-to-home-btn').addEventListener('click', () => {
   document.getElementById('quiz-result').classList.add('hidden');

@@ -86,7 +86,14 @@ button.danger-text { background: none; border: none; color: var(--muted); width:
 .stat span { font-size: 12px; color: var(--muted); }
 .check { display: flex; align-items: center; gap: 8px; }
 .check input { width: auto; }
-.quiz-q { font-size: 28px; text-align: center; margin: 16px 0 4px; word-break: break-word; }
+.quiz-q { font-size: 28px; text-align: center; margin: 24px 0 24px; word-break: break-word; }
+.quiz-word-no { text-align: center; color: var(--muted); font-size: 13px; font-weight: bold; margin: 12px 0 0; }
+.quiz-timer { margin-top: 8px; font-size: 14px; font-weight: bold; text-align: center; }
+.quiz-timer .timer-bar { height: 6px; margin-top: 4px; }
+.quiz-timer.urgent { color: var(--ng); }
+.quiz-timer.urgent #quiz-timer-bar { background: var(--ng); }
+.giveup-wrap { display: flex; justify-content: flex-end; margin-top: 6px; }
+.giveup-btn { background: none; border: none; color: var(--muted); font-size: 12px; min-height: 32px; padding: 6px 8px; }
 #quiz-hint { text-align: center; }
 .quiz-progress { font-size: 13px; }
 .bar { height: 8px; background: #e2e8f0; border-radius: 99px; overflow: hidden; margin-top: 4px; }
@@ -126,15 +133,28 @@ body.quiz-active .bottom-nav { display: none; }
 .word-row .ja { color: var(--muted); font-size: 13px; }
 .word-row .del { flex-shrink: 0; padding: 0; min-height: 44px; }
 #edit-word-list .icon-btn {
-  width: 44px;
-  height: 44px;
-  min-height: 44px;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 15px;
   flex-shrink: 0;
+}
+/* 問題番号タップで選択（編集画面の単語一覧） */
+#edit-word-list .word-no-btn {
+  cursor: pointer;
+  font-family: inherit;
+  min-width: 44px;
+  min-height: 44px;
+  border: 2px solid transparent;
+}
+#edit-word-list .word-no-btn.selected {
+  border-color: var(--primary);
+  background: #eef2ff;
+  color: var(--primary);
 }
 .result-ok { color: var(--ok); font-weight: bold; }
 .result-ng { color: var(--ng); font-weight: bold; }
@@ -327,7 +347,6 @@ h4 { margin: 4px 0 6px; font-size: 14px; }
 .group-header { font-size: 13px; font-weight: bold; color: var(--muted); margin: 12px 0 2px; }
 .icon-btn { font-size: 18px; padding: 8px 0; width: 44px; min-height: 44px; line-height: 1; text-align: center; flex-shrink: 0; }
 #word-detail-title { font-size: 22px; font-weight: bold; line-height: 1.4; }
-.word-check { width: 22px; height: 22px; flex-shrink: 0; margin: 0; padding: 0; accent-color: var(--primary); }
 /* 単語帳バナー（比率を変えず横幅フィット＋下部グラデーションでカット） */
 .book-banner {
   position: relative;
@@ -344,16 +363,27 @@ h4 { margin: 4px 0 6px; font-size: 14px; }
   background: linear-gradient(to bottom, transparent, var(--card));
 }
 /* 一覧の内部スクロール（件数が多くても周辺UIをスクロールさせない） */
-#chapter-list,
+#chapter-list-scroll,
 #edit-chapter-list,
 #words-modal-list,
 #edit-word-list {
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  padding: 2px 4px 2px 2px;
+  padding: 6px;
 }
-#chapter-list { max-height: 50vh; }
+/* 内部スクロール範囲を分かりやすくする枠 */
+.scroll-frame,
+#edit-chapter-list,
+#words-modal-list,
+#edit-word-list {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+#chapter-list-pinned { margin-bottom: 8px; }
+#chapter-list-pinned:empty { display: none; }
+#chapter-list-scroll { max-height: 50vh; }
 #edit-chapter-list { max-height: 30vh; position: relative; }
 #words-modal-list { max-height: 50vh; }
 #edit-word-list { max-height: 35vh; position: relative; }
@@ -381,3 +411,21 @@ h4 { margin: 4px 0 6px; font-size: 14px; }
   transition: none;
 }
 .sortable-sorting .sortable-item:not(.sortable-drag) { transition: transform 0.2s ease; }
+/* 出題設定: ボタン選択＋ステッパー */
+.qs-group { margin: 12px 0; }
+.qs-group.disabled { opacity: .4; }
+.qs-group.disabled .qs-label { color: var(--muted); }
+.qs-label { font-size: 14px; font-weight: bold; margin: 0 0 6px; }
+.seg-group { display: flex; gap: 8px; }
+.seg-group button { flex: 1; border: 2px solid transparent; background: #f1f5f9; }
+.seg-group button.selected { border-color: var(--primary); background: #eef2ff; color: var(--primary); font-weight: bold; }
+.stepper { display: flex; align-items: center; justify-content: center; gap: 16px; }
+.step-btn {
+  width: 48px; height: 48px; min-height: 48px;
+  border-radius: 50%;
+  font-size: 22px; font-weight: bold;
+  padding: 0;
+  line-height: 1;
+}
+.step-btn:disabled { opacity: .4; cursor: default; }
+.step-value { min-width: 88px; text-align: center; font-size: 18px; font-weight: bold; }
